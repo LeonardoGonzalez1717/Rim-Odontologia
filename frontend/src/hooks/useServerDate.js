@@ -12,14 +12,18 @@ const API_BASE = import.meta.env.DEV
 // Cache y offset para el cálculo dinámico de la hora del servidor
 let _cached = null
 let _promise = null
+let _synced = false
 let _timeOffsetMs = 0          // Diferencia (Servidor UTC - Cliente Local UTC)
 let _serverTimezoneOffsetMs = 0 // Offset del servidor (ej. America/New_York)
 let _syncError = null
 
+/** Indica si la hora del servidor/internet ya fue sincronizada */
+export const isServerDateSynced = () => _synced
+
 /** Devuelve la fecha/hora actual del servidor en tiempo real (calculada) */
 export const getActualServerDatetime = () => {
-  if (_timeOffsetMs === 0 && _serverTimezoneOffsetMs === 0) {
-    return '' // No sincronizado aún
+  if (!_synced) {
+    return '' // No sincronizado aún — nunca usar hora local del cliente
   }
   // Hora UTC actual real (asumiendo que _timeOffsetMs corrige el reloj del cliente)
   const currentUtcMs = Date.now() + _timeOffsetMs
@@ -49,6 +53,7 @@ async function fetchServerDate() {
         if (data?.success && data?.timestamp !== undefined) {
           _timeOffsetMs = data.timestamp - Date.now()
           _serverTimezoneOffsetMs = data.timezone_offset || 0
+          _synced = true
           _cached = getActualServerDate()
           _syncError = null
         } else {

@@ -24,13 +24,6 @@ import DoctorSelect from './DoctorSelect'
 import ServicioSelect from './ServicioSelect'
 import { useServerDate, getActualServerDatetime } from '../hooks/useServerDate'
 
-const getFechaHoraActualFallback = () => {
-  const ahora = new Date()
-  const offsetMs = ahora.getTimezoneOffset() * 60 * 1000
-  const local = new Date(ahora.getTime() - offsetMs)
-  return local.toISOString().slice(0, 16)
-}
-
 const PORCENTAJE_INICIAL_CASHEA = 0.4
 
 const calcularMontoCajaCashea = (total) =>
@@ -51,19 +44,26 @@ const RegistrarVentaModal = ({
   clientes = [],
   onRecargarClientes,
 }) => {
-  const { datetime: _, cargando } = useServerDate()
+  const { cargando, error: errorServidor } = useServerDate()
   const [form, setForm] = useState(crearEstadoInicial)
-  
-  // Al abrir el modal, aseguramos que la hora esté fresca
+
+  // Mantener #fecha_venta siempre con la hora del servidor/internet (nunca la del PC)
   useEffect(() => {
-    if (!cargando) {
-      setForm((prev) => {
-        if (prev.fecha_venta === getFechaHoraActualFallback() || prev.fecha_venta < getActualServerDatetime()) {
-          return { ...prev, fecha_venta: getActualServerDatetime() }
-        }
-        return prev
-      })
+    if (cargando) return
+
+    const actualizarFechaServidor = () => {
+      const fechaServidor = getActualServerDatetime()
+      if (!fechaServidor) return
+      setForm((prev) => (
+        prev.fecha_venta === fechaServidor
+          ? prev
+          : { ...prev, fecha_venta: fechaServidor }
+      ))
     }
+
+    actualizarFechaServidor()
+    const intervalo = setInterval(actualizarFechaServidor, 1000)
+    return () => clearInterval(intervalo)
   }, [cargando])
 
   const [servicioSeleccionado, setServicioSeleccionado] = useState('')
@@ -278,6 +278,7 @@ const RegistrarVentaModal = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    if (name === 'fecha_venta') return
     setError('')
     setForm((prev) => ({ ...prev, [name]: value }))
   }
@@ -342,7 +343,8 @@ const RegistrarVentaModal = ({
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
-    if (!form.fecha_venta) return 'Por favor, indica la fecha y hora.'
+    if (errorServidor) return errorServidor
+    if (!form.fecha_venta) return 'Esperando la hora del servidor. Verifica tu conexión a Internet.'
     if (total <= 0) return 'El monto debe ser mayor a $0.'
     if (tieneCashea) {
       const monto = parseFloat(montoCashea)
@@ -372,8 +374,10 @@ const RegistrarVentaModal = ({
     setError('')
 
     try {
-      // Al guardar, usar la hora obtenida del servidor (o fallback local)
       const fechaActual = getActualServerDatetime()
+      if (!fechaActual) {
+        throw new Error('No se pudo obtener la hora del servidor. Verifica tu conexión a Internet.')
+      }
       setForm((prev) => ({ ...prev, fecha_venta: fechaActual }))
       const fechaFormateada = fechaActual.replace('T', ' ') + ':00'
 
@@ -947,10 +951,18 @@ const RegistrarVentaModal = ({
               type="datetime-local"
               name="fecha_venta"
               value={form.fecha_venta}
-              onChange={handleChange}
-              className="form-input"
+              readOnly
+              tabIndex={-1}
+              className="form-input bg-slate-50 text-slate-600 cursor-default"
+              aria-label="Fecha y hora del servidor"
+              title="Hora sincronizada con el servidor e Internet (no editable)"
               required
             />
+            <p className="text-xs text-slate-500 mt-1">
+              {cargando || !form.fecha_venta
+                ? 'Sincronizando hora con el servidor…'
+                : 'Hora del servidor e Internet (no usa el reloj de esta computadora)'}
+            </p>
           </div>
 
           {/* ── Contado / Cashea / Total ── */}
@@ -1057,7 +1069,7 @@ const RegistrarVentaModal = ({
             {(!clienteTieneDeuda || !modoAbono) && (
               <button
                 type="submit"
-                disabled={loading || exito || lineas.length === 0}
+                disabled={loading || exito || lineas.length === 0 || cargando || !form.fecha_venta}
                 className="btn-primary flex-1 flex items-center justify-center gap-2"
               >
                 {loading ? (

@@ -75,7 +75,8 @@ try {
     $doctor_id   = (int) $datos['doctor_id'];
     $cliente_id  = (int) $datos['cliente_id'];
     $infoInternet = obtenerFechaHoraInternet();
-    $fecha_venta = !empty($datos['fecha_venta']) ? $datos['fecha_venta'] : $infoInternet['datetime'];
+    // Siempre usar hora de Internet/servidor; ignorar la hora enviada por el cliente
+    $fecha_venta = $infoInternet['datetime'];
 
     if ($doctor_id <= 0) {
         http_response_code(400);
