@@ -95,14 +95,27 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
 }
 
 /**
- * Nota de entrega: cabecera con empresa, doctor y tratamiento; lista y total.
+ * Nota de entrega: cabecera con empresa, doctor y tratamientos; lista y total.
  */
 export const abrirNotaEntrega = (venta) => {
+  const lineas = venta.servicios?.length
+    ? venta.servicios
+    : [{ nombre: venta.servicio, precio: venta.total }]
+
+  const filas = lineas.map((s) => `
+    <tr>
+      <td>${s.nombre}</td>
+      <td>${fmt(s.precio)}</td>
+    </tr>
+  `).join('')
+
+  const resumenTratamientos = lineas.map((s) => s.nombre).join(', ')
+
   const contenido = `
   <h1>Rim Challouf</h1>
   <div class="header-info">
     <p><strong>Doctor:</strong> ${venta.doctor}</p>
-    <p><strong>Tratamiento:</strong> ${venta.servicio}</p>
+    <p><strong>Tratamiento${lineas.length > 1 ? 's' : ''}:</strong> ${resumenTratamientos}</p>
   </div>
   <table>
     <thead>
@@ -112,10 +125,7 @@ export const abrirNotaEntrega = (venta) => {
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td>${venta.servicio}</td>
-        <td>${fmt(venta.total)}</td>
-      </tr>
+      ${filas}
     </tbody>
   </table>
   <div class="total">Total: ${fmt(venta.total)}</div>`
@@ -133,13 +143,19 @@ export const abrirNotaEntrega = (venta) => {
 export const abrirReporteDiario = (datos) => {
   const ventas = (datos.ventas_recientes ?? []).filter((v) => v.estado === 'completada')
 
-  const filas = ventas.map((v) => `
+  const filas = ventas.flatMap((v) => {
+    const lineas = v.servicios?.length
+      ? v.servicios
+      : [{ nombre: v.servicio, precio: v.total }]
+
+    return lineas.map((s) => `
     <tr>
       <td>${v.doctor}</td>
-      <td>${v.servicio}</td>
-      <td>${fmt(v.total)}</td>
+      <td>${s.nombre}</td>
+      <td>${fmt(s.precio)}</td>
     </tr>
-  `).join('')
+  `)
+  }).join('')
 
   const total = datos.ingresos_dia ?? ventas.reduce((sum, v) => sum + v.total, 0)
 

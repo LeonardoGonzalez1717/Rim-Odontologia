@@ -13,7 +13,11 @@
 //     "modo": "dia"|"historial",
 //     "fecha": "...",
 //     "paginacion": { "pagina", "por_pagina", "total", "total_paginas" },
-//     "ventas": [...]
+//     "ventas": [
+//       {
+//         "id", "fecha", "hora", "doctor", "servicio", "servicios", "total", "estado"
+//       }
+//     ]
 //   }
 // =============================================================================
 
@@ -28,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -44,15 +49,13 @@ try {
     $offset    = ($pagina - 1) * $porPagina;
 
     $fromSql = "FROM ventas v
-                INNER JOIN doctores d               ON v.doctor_id   = d.id
-                INNER JOIN servicios_tratamientos s ON v.servicio_id = s.id";
+                INNER JOIN doctores d ON v.doctor_id = d.id";
 
     $selectSql = "SELECT
                     v.id,
                     DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha,
                     TIME_FORMAT(v.fecha_venta, '%H:%i')    AS hora,
                     d.nombre                                AS doctor,
-                    s.nombre_servicio                       AS servicio,
                     v.total,
                     v.estado
                   $fromSql";
@@ -95,19 +98,18 @@ try {
     }
     $stmt->execute();
 
-    $ventas = $stmt->fetchAll();
-
     $ventas = array_map(function ($row) {
         return [
-            'id'       => (int)   $row['id'],
-            'fecha'    => $row['fecha'],
-            'hora'     => $row['hora'],
-            'doctor'   => $row['doctor'],
-            'servicio' => $row['servicio'],
-            'total'    => (float) $row['total'],
-            'estado'   => $row['estado'],
+            'id'     => (int)   $row['id'],
+            'fecha'  => $row['fecha'],
+            'hora'   => $row['hora'],
+            'doctor' => $row['doctor'],
+            'total'  => (float) $row['total'],
+            'estado' => $row['estado'],
         ];
-    }, $ventas);
+    }, $stmt->fetchAll());
+
+    $ventas = enriquecerVentasConServicios($pdo, $ventas);
 
     echo json_encode([
         'success'    => true,

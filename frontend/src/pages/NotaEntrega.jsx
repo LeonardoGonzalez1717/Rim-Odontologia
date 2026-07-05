@@ -36,11 +36,17 @@ const NotaEntrega = ({ onToast }) => {
   useEffect(() => { cargar() }, [cargar])
 
   // Filtro por búsqueda
-  const ventasFiltradas = ventas.filter((v) =>
-    v.doctor.toLowerCase().includes(busqueda.toLowerCase()) ||
-    v.servicio.toLowerCase().includes(busqueda.toLowerCase()) ||
-    String(v.id).includes(busqueda)
-  )
+  const ventasFiltradas = ventas.filter((v) => {
+    const textoServicios = v.servicios?.length
+      ? v.servicios.map((s) => s.nombre).join(' ')
+      : v.servicio
+    const q = busqueda.toLowerCase()
+    return (
+      v.doctor.toLowerCase().includes(q) ||
+      textoServicios.toLowerCase().includes(q) ||
+      String(v.id).includes(busqueda)
+    )
+  })
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -126,7 +132,15 @@ const NotaEntrega = ({ onToast }) => {
                       <span className="text-sm font-semibold text-slate-800">{venta.doctor}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600">{venta.servicio}</span>
+                      {venta.servicios?.length > 1 ? (
+                        <ul className="text-sm text-slate-600 space-y-0.5">
+                          {venta.servicios.map((s) => (
+                            <li key={s.id}>{s.nombre}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-sm text-slate-600">{venta.servicio}</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-pink-700 bg-pink-50

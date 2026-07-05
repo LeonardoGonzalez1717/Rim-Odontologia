@@ -1,11 +1,13 @@
 // =============================================================================
 // api/api.js — Módulo centralizado para todas las llamadas al backend PHP
-// Configuración: Todas las peticiones van al proxy /api (configurado en vite.config.js)
-//                que redirige a http://localhost/rim-challouf/backend/
+// Configuración:
+//   - Desarrollo (Vite): /api → proxy en vite.config.js → backend PHP
+//   - Producción (Apache): ruta directa al backend en htdocs
 // =============================================================================
 
-// URL base de la API (el proxy de Vite maneja la redirección)
-const API_BASE = '/api';
+const API_BASE = import.meta.env.DEV
+  ? '/api'
+  : '/Rim-Odontologia/backend';
 
 /**
  * Helper interno: realiza un fetch y lanza un error si la respuesta no es OK.
@@ -20,9 +22,18 @@ async function apiFetch(url, options = {}) {
   });
 
   // Parsear el JSON (siempre, incluso en error, el backend devuelve JSON)
-  const data = await response.json();
+  const raw = await response.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      response.ok
+        ? 'El servidor no devolvió JSON válido. Verifica que Apache esté activo y la ruta del backend sea correcta.'
+        : `Error HTTP ${response.status}: no se pudo conectar con el backend.`,
+    );
+  }
 
-  // Si la respuesta no es 2xx o el backend señala error, lanzar excepción
   if (!response.ok || !data.success) {
     throw new Error(data.message || `Error HTTP ${response.status}`);
   }
@@ -92,7 +103,7 @@ export async function getDashboard(fecha) {
 // -----------------------------------------------------------------------------
 // registrarVenta(datos) — Inserta una nueva venta
 // Endpoint: POST /api/registrar_venta.php
-// @param {{ doctor_id, servicio_id, total, fecha_venta }} datos
+// @param {{ doctor_id, total, fecha_venta, servicios: Array<{servicio_id, precio}> }} datos
 // -----------------------------------------------------------------------------
 export async function registrarVenta(datos) {
   return apiFetch(`${API_BASE}/registrar_venta.php`, {

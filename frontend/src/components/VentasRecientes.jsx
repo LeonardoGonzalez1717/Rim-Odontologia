@@ -163,11 +163,19 @@ const VentasRecientes = ({
                         </span>
                       </td>
 
-                      {/* Servicio */}
+                      {/* Servicio(s) */}
                       <td className="py-3.5 pr-4">
-                        <span className="text-sm text-slate-600 leading-tight">
-                          {venta.servicio}
-                        </span>
+                        {venta.servicios?.length > 1 ? (
+                          <ul className="text-sm text-slate-600 leading-tight space-y-0.5">
+                            {venta.servicios.map((s) => (
+                              <li key={s.id}>{s.nombre}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-sm text-slate-600 leading-tight">
+                            {venta.servicio}
+                          </span>
+                        )}
                       </td>
 
                       {/* Monto */}
