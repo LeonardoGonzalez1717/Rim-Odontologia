@@ -10,7 +10,7 @@ export default defineConfig({
     // Ajusta el target según donde tengas XAMPP configurado
     proxy: {
       '/api': {
-        target: 'http://localhost/Rim-Odontologia/backend',
+        target: 'http://localhost/Rim-Odontologia/frontend/backend',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
