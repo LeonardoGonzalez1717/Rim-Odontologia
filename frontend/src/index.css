@@ -1,0 +1,235 @@
+/* =============================================================================
+   index.css — Estilos globales
+   Paleta: gris (principal) + rosado (acento)
+   ============================================================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-200;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-400 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer components {
+  .app-layout {
+    @apply flex min-h-screen;
+  }
+
+  /* ── Sidebar (gris principal) ── */
+  .sidebar {
+    @apply fixed top-0 left-0 h-full z-40
+           flex flex-col
+           bg-gradient-to-b from-slate-800 via-slate-800 to-slate-900
+           border-r border-slate-700/50;
+    width: 260px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar-collapsed {
+    width: 72px;
+  }
+
+  @media (max-width: 767px) {
+    .sidebar {
+      transform: translateX(-100%);
+    }
+    .sidebar.sidebar-open {
+      transform: translateX(0);
+    }
+  }
+
+  .sidebar-overlay {
+    @apply fixed inset-0 bg-black/50 z-30 backdrop-blur-sm;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .main-content {
+    @apply flex-1 min-h-screen;
+    margin-left: 260px;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @media (max-width: 767px) {
+    .main-content {
+      margin-left: 0;
+    }
+  }
+
+  .sidebar-logo {
+    @apply flex items-center gap-3 px-5 py-6 border-b border-slate-700/50;
+  }
+
+  .sidebar-logo-text h1 {
+    @apply text-sm font-bold text-white leading-tight;
+  }
+
+  .sidebar-logo-text p {
+    @apply text-[11px] text-slate-400 leading-tight mt-0.5;
+  }
+
+  .sidebar-nav {
+    @apply flex-1 px-3 py-4 space-y-1 overflow-y-auto;
+  }
+
+  .sidebar-section-title {
+    @apply text-[10px] font-bold uppercase tracking-widest text-slate-500
+           px-3 mb-2 mt-4;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+           text-slate-400 transition-all duration-200 cursor-pointer
+           relative overflow-hidden;
+  }
+
+  .sidebar-link:hover {
+    @apply bg-white/5 text-slate-200;
+  }
+
+  .sidebar-link.active {
+    @apply text-white;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.22) 0%, rgba(190, 24, 93, 0.12) 100%);
+  }
+
+  .sidebar-link.active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full;
+    background: linear-gradient(180deg, #f472b6, #ec4899);
+  }
+
+  .sidebar-link-icon {
+    @apply w-5 h-5 flex-shrink-0;
+  }
+
+  .sidebar-footer {
+    @apply px-4 py-4 border-t border-slate-700/50;
+  }
+
+  .mobile-topbar {
+    @apply md:hidden sticky top-0 z-20 flex items-center justify-between
+           bg-white/80 backdrop-blur-xl border-b border-slate-200
+           px-4 py-3;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-200/80 p-6;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card:hover {
+    @apply shadow-card-hover;
+  }
+
+  /* Botón primario — rosado */
+  .btn-primary {
+    @apply bg-pink-600 hover:bg-pink-700 active:bg-pink-800
+           text-white font-semibold py-2.5 px-5 rounded-xl
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botón secundario — gris */
+  .btn-secondary {
+    @apply bg-slate-200 hover:bg-slate-300 active:bg-slate-400
+           text-slate-700 font-semibold py-2.5 px-5 rounded-xl
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2;
+  }
+
+  .btn-danger {
+    @apply bg-red-50 hover:bg-red-100 active:bg-red-200
+           text-red-600 font-semibold py-1.5 px-3.5 rounded-lg text-sm
+           transition-all duration-200 ease-in-out
+           border border-red-200 hover:border-red-300
+           focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .form-input {
+    @apply w-full bg-slate-50 border border-slate-300 rounded-xl
+           px-4 py-3 text-slate-800 text-sm
+           focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500
+           transition-all duration-200 ease-in-out
+           placeholder:text-slate-400;
+  }
+
+  .form-label {
+    @apply block text-sm font-semibold text-slate-600 mb-1.5;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+  .badge-completada {
+    @apply bg-pink-50 text-pink-700 border border-pink-200;
+  }
+  .badge-cancelada {
+    @apply bg-red-50 text-red-600 border border-red-200;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.25s ease-out;
+  }
+
+  .animate-slide-right {
+    animation: slideRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+}
