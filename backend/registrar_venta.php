@@ -1,24 +1,30 @@
 <?php
 // =============================================================================
-// registrar_venta.php — Inserta una nueva venta en la base de datos
+// registrar_venta.php — Inserta una nueva venta con uno o más tratamientos
 // Método: POST
-// Body JSON: { "doctor_id": 1, "servicio_id": 3, "fecha_venta": "2024-01-15 10:30:00", "total": 120.00 }
+// Body JSON:
+// {
+//   "doctor_id": 1,
+//   "fecha_venta": "2024-01-15 10:30:00",
+//   "total": 200.00,
+//   "servicios": [
+//     { "servicio_id": 2, "precio": 80.00 },
+//     { "servicio_id": 3, "precio": 120.00 }
+//   ]
+// }
 // Respuesta: JSON { "success": true, "id": 42, "message": "..." }
 // =============================================================================
 
-// --- Encabezados CORS y tipo de contenido ---
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json; charset=utf-8');
 
-// Responder inmediatamente a las solicitudes preflight de CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// Solo aceptar método POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Método no permitido. Use POST.']);
@@ -28,71 +34,135 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 require_once 'conexion.php';
 
 try {
-    // --- Leer y decodificar el cuerpo JSON de la solicitud ---
-    $body = file_get_contents('php://input');
+    $body  = file_get_contents('php://input');
     $datos = json_decode($body, true);
 
-    // --- Validar que el JSON sea válido ---
     if (json_last_error() !== JSON_ERROR_NONE) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'JSON inválido en el cuerpo de la solicitud.']);
         exit;
     }
 
-    // --- Validar campos requeridos ---
-    $camposRequeridos = ['doctor_id', 'servicio_id', 'total'];
-    foreach ($camposRequeridos as $campo) {
-        if (empty($datos[$campo])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => "El campo '$campo' es requerido."]);
-            exit;
-        }
+    if (empty($datos['doctor_id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => "El campo 'doctor_id' es requerido."]);
+        exit;
     }
 
-    // --- Sanitizar y asignar valores ---
-    $doctor_id   = (int)   $datos['doctor_id'];
-    $servicio_id = (int)   $datos['servicio_id'];
-    $total       = (float) $datos['total'];
-    // Si el frontend envía una fecha personalizada, se usa; si no, se usa NOW()
+    // Compatibilidad: aceptar un solo servicio_id o un arreglo servicios
+    $lineas = [];
+    if (!empty($datos['servicios']) && is_array($datos['servicios'])) {
+        $lineas = $datos['servicios'];
+    } elseif (!empty($datos['servicio_id'])) {
+        $lineas = [[
+            'servicio_id' => $datos['servicio_id'],
+            'precio'      => $datos['total'] ?? null,
+        ]];
+    }
+
+    if (empty($lineas)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Debe incluir al menos un tratamiento.']);
+        exit;
+    }
+
+    $doctor_id   = (int) $datos['doctor_id'];
     $fecha_venta = !empty($datos['fecha_venta']) ? $datos['fecha_venta'] : date('Y-m-d H:i:s');
 
-    // --- Validar valores positivos ---
-    if ($doctor_id <= 0 || $servicio_id <= 0 || $total < 0) {
+    if ($doctor_id <= 0) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Los IDs y el total deben ser valores positivos.']);
+        echo json_encode(['success' => false, 'message' => 'El doctor_id debe ser un valor positivo.']);
+        exit;
+    }
+
+    $lineasNormalizadas = [];
+    foreach ($lineas as $i => $linea) {
+        $servicioId = (int) ($linea['servicio_id'] ?? 0);
+        $precio     = isset($linea['precio']) ? (float) $linea['precio'] : null;
+
+        if ($servicioId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => "Tratamiento #" . ($i + 1) . ": servicio_id inválido."]);
+            exit;
+        }
+        if ($precio === null || $precio < 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => "Tratamiento #" . ($i + 1) . ": precio inválido."]);
+            exit;
+        }
+
+        $lineasNormalizadas[] = [
+            'servicio_id' => $servicioId,
+            'precio'      => $precio,
+        ];
+    }
+
+    $totalCalculado = array_sum(array_column($lineasNormalizadas, 'precio'));
+    $total          = isset($datos['total']) ? (float) $datos['total'] : $totalCalculado;
+
+    if ($total < 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'El total debe ser un valor positivo.']);
+        exit;
+    }
+
+    if (abs($total - $totalCalculado) > 0.01) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'El total no coincide con la suma de los tratamientos.',
+        ]);
         exit;
     }
 
     $pdo = obtenerConexion();
+    $pdo->beginTransaction();
 
-    // --- Insertar la venta con consulta preparada ---
-    $stmt = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, servicio_id, fecha_venta, total, estado)
-         VALUES (:doctor_id, :servicio_id, :fecha_venta, :total, 'completada')"
+    $stmtVenta = $pdo->prepare(
+        "INSERT INTO ventas (doctor_id, fecha_venta, total, estado)
+         VALUES (:doctor_id, :fecha_venta, :total, 'completada')"
     );
-
-    $stmt->execute([
+    $stmtVenta->execute([
         ':doctor_id'   => $doctor_id,
-        ':servicio_id' => $servicio_id,
         ':fecha_venta' => $fecha_venta,
         ':total'       => $total,
     ]);
 
-    $nuevoId = $pdo->lastInsertId();
+    $nuevoId = (int) $pdo->lastInsertId();
 
-    // --- Respuesta exitosa ---
-    http_response_code(201); // 201 Created
+    $stmtDetalle = $pdo->prepare(
+        "INSERT INTO venta_detalles (venta_id, servicio_id, precio)
+         VALUES (:venta_id, :servicio_id, :precio)"
+    );
+
+    foreach ($lineasNormalizadas as $linea) {
+        $stmtDetalle->execute([
+            ':venta_id'    => $nuevoId,
+            ':servicio_id' => $linea['servicio_id'],
+            ':precio'      => $linea['precio'],
+        ]);
+    }
+
+    $pdo->commit();
+
+    http_response_code(201);
     echo json_encode([
         'success' => true,
-        'id'      => (int) $nuevoId,
+        'id'      => $nuevoId,
         'message' => 'Venta registrada correctamente.',
     ]);
 
 } catch (RuntimeException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 
 } catch (PDOException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error al registrar la venta: ' . $e->getMessage()]);
 }

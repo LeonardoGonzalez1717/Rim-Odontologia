@@ -39,20 +39,32 @@ CREATE TABLE IF NOT EXISTS `servicios_tratamientos` (
 
 -- =============================================================================
 -- TABLA: ventas
--- Registro de cada venta/tratamiento realizado
+-- Cabecera de cada venta (puede incluir varios tratamientos)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS `ventas` (
   `id`           INT(11)        NOT NULL AUTO_INCREMENT,
   `doctor_id`    INT(11)        NOT NULL,
-  `servicio_id`  INT(11)        NOT NULL,
   `fecha_venta`  TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `total`        DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `estado`       ENUM('completada','cancelada') NOT NULL DEFAULT 'completada',
   PRIMARY KEY (`id`),
-  -- Llaves foráneas con restricción de integridad referencial
   CONSTRAINT `fk_venta_doctor`
-    FOREIGN KEY (`doctor_id`)   REFERENCES `doctores`(`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_venta_servicio`
+    FOREIGN KEY (`doctor_id`) REFERENCES `doctores`(`id`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- TABLA: venta_detalles
+-- Líneas de tratamiento incluidas en cada venta
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS `venta_detalles` (
+  `id`          INT(11)        NOT NULL AUTO_INCREMENT,
+  `venta_id`    INT(11)        NOT NULL,
+  `servicio_id` INT(11)        NOT NULL,
+  `precio`      DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_detalle_venta`
+    FOREIGN KEY (`venta_id`)    REFERENCES `ventas`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_detalle_servicio`
     FOREIGN KEY (`servicio_id`) REFERENCES `servicios_tratamientos`(`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
