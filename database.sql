@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `ventas` (
 -- DATOS DE PRUEBA: Doctores
 -- =============================================================================
 INSERT INTO `doctores` (`nombre`, `especialidad`, `estado`) VALUES
-  ('Dr. Rim Challouf',        'Odontología General',  'activo'),
+  ('Dr. Rim Challouf',        'Odontología General',  'activo');
 
 
 -- =============================================================================
