@@ -1,6 +1,6 @@
 import React from 'react'
 import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2 } from 'lucide-react'
-import MetricCard      from './MetricCard'
+import MetricCard from './MetricCard'
 import VentasPorDoctor from './VentasPorDoctor'
 import VentasRecientes from './VentasRecientes'
 import FiltroFechaVentas from './FiltroFechaVentas'
@@ -114,7 +114,7 @@ const Dashboard = ({
         </button>
       </div>
       {/* ── Fila 1: Métricas principales ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
         {/* Ingresos del día */}
         <MetricCard
           title={esHoy(fechaVentas) ? 'Ingresos del Día' : 'Ingresos del Día Seleccionado'}
@@ -133,7 +133,7 @@ const Dashboard = ({
           subtitle="Procedimientos completados"
         />
 
-        {/* Promedio por tratamiento */}
+        {/* Promedio por tratamiento
         <MetricCard
           title="Promedio por Tratamiento"
           value={
@@ -144,7 +144,7 @@ const Dashboard = ({
           icon={TrendingUp}
           color="rose"
           subtitle={esHoy(fechaVentas) ? 'Ingreso promedio del día' : formatearFechaCorta(fechaVentas)}
-        />
+        /> */}
       </div>
 
       {/* ── Fila 2: Ventas por Doctor + Ventas Recientes (Uno debajo del otro) ── */}
@@ -171,7 +171,7 @@ const Dashboard = ({
       </div>
 
       {/* Indicador de actualización en curso */}
-          {/* {loading && datos && (
+      {/* {loading && datos && (
             <div className="flex items-center justify-center gap-2 text-slate-400 text-sm py-2">
               <RefreshCw size={14} className="animate-spin" />
               Actualizando datos...

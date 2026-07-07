@@ -23,17 +23,39 @@ const PRINT_STYLES = `
     font-size: 14px;
     line-height: 1.5;
   }
-  h1 {
-    font-size: 20px;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 16px;
+  
+  .brand-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
   }
+  .brand-logo {
+    width: 40px;
+    height: auto;
+    object-fit: contain;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    text-align: left;
+  }
+
   .header-info {
-    text-align: center;
-    margin-bottom: 28px;
+    text-align: left;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
   }
   .header-info p { margin: 4px 0; }
+  
+  /* Contenedor flexible para alinear el título del reporte y la fecha a los extremos */
+  .report-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  
   table {
     width: 100%;
     border-collapse: collapse;
@@ -46,6 +68,7 @@ const PRINT_STYLES = `
   }
   th:last-child, td:last-child { text-align: right; }
   th { font-weight: 600; border-bottom: 2px solid #111; }
+  
   .total {
     text-align: right;
     font-size: 16px;
@@ -86,10 +109,6 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
   <style>${PRINT_STYLES}</style>
 </head>
 <body>
-  <div class="print-bar no-print">
-    <button type="button" onclick="window.print()">Imprimir</button>
-    <button type="button" onclick="window.close()">Cerrar</button>
-  </div>
   ${contenido}
 </body>
 </html>`
@@ -131,10 +150,15 @@ export const abrirNotaEntrega = (venta) => {
   const resumenTratamientos = lineas.map((s) => esc(s.nombre)).join(', ')
 
   const contenido = `
-  <h1>Rim Challouf</h1>
+  <div class="brand-header">
+    <img src="./public/logoBlanco.png" alt="Logo" class="brand-logo" />
+    <h1>Rim Challouf</h1>
+  </div>
   <div class="header-info">
-    <p><strong>Doctor:</strong> ${esc(venta.doctor)}</p>
-    <p><strong>Tratamiento${lineas.length > 1 ? 's' : ''}:</strong> ${resumenTratamientos}</p>
+    <div class="report-meta">
+      <p><strong>Doctor:</strong> ${venta.doctor}</p>
+      <p style="color: #666;"><strong>Fecha:</strong> ${fmtFecha(venta.fecha_venta)}</p>
+    </div>
   </div>
   <table>
     <thead>
@@ -157,10 +181,13 @@ export const abrirNotaEntrega = (venta) => {
 }
 
 /**
- * Reporte de ventas: cabecera con empresa; lista de tratamientos y total.
+ * Reporte de ventas: cabecera con empresa; lista de tratamientos y total con fecha.
  */
 export const abrirReporteDiario = (datos) => {
   const ventas = (datos.ventas_recientes ?? []).filter((v) => v.estado === 'completada')
+
+  // Intentamos sacar la fecha de los datos globales, de la primera venta ('fecha_venta') o la de hoy por defecto
+  const fechaReporte = datos.fecha_reporte ?? ventas[0]?.fecha_venta ?? null;
 
   const filas = ventas.flatMap((v) => {
     const lineas = v.servicios?.length
@@ -179,9 +206,15 @@ export const abrirReporteDiario = (datos) => {
   const total = datos.ingresos_dia ?? ventas.reduce((sum, v) => sum + v.total, 0)
 
   const contenido = `
-  <h1>Rim Challouf</h1>
+  <div class="brand-header">
+    <img src="./public/logoBlanco.png" alt="Logo" class="brand-logo" />
+    <h1>Rim Challouf</h1>
+  </div>
   <div class="header-info">
-    <p><strong>Reporte de Ventas</strong></p>
+    <div class="report-meta">
+      <p style="font-size: 16px; font-weight: 600; color: #555;">Reporte de Ventas</p>
+      <p style="color: #666;"><strong>Fecha:</strong> ${fmtFecha(fechaReporte)}</p>
+    </div>
   </div>
   <table>
     <thead>

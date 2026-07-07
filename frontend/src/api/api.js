@@ -7,7 +7,7 @@
 
 const API_BASE = import.meta.env.DEV
   ? '/api'
-  : '/Rim-Odontologia/backend';
+  : '/Rim-Odontologia/frontend/backend';
 
 /**
  * Helper interno: realiza un fetch y lanza un error si la respuesta no es OK.
