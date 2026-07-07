@@ -17,6 +17,7 @@ USE `rim_challouf`;
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS `doctores` (
   `id`           INT(11)      NOT NULL AUTO_INCREMENT,
+  `cedula`       VARCHAR(20)  NOT NULL,
   `nombre`       VARCHAR(150) NOT NULL,
   `especialidad` VARCHAR(100) NOT NULL DEFAULT 'Odontología General',
   `estado`       ENUM('activo','inactivo') NOT NULL DEFAULT 'activo',
@@ -71,8 +72,8 @@ CREATE TABLE IF NOT EXISTS `venta_detalles` (
 -- =============================================================================
 -- DATOS DE PRUEBA: Doctores
 -- =============================================================================
-INSERT INTO `doctores` (`nombre`, `especialidad`, `estado`) VALUES
-  ('Dr. Rim Challouf',        'Odontología General',  'activo'),
+INSERT INTO `doctores` (`cedula`, `nombre`, `especialidad`, `estado`) VALUES
+  ('V-00000000', 'Dr. Rim Challouf', 'Odontología General', 'activo'),
 
 
 -- =============================================================================

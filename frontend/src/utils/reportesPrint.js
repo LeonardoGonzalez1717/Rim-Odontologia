@@ -5,6 +5,13 @@
 export const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v ?? 0)
 
+/** Escapa texto para insertarlo de forma segura en HTML */
+const esc = (str) => String(str ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+
 const PRINT_STYLES = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -75,23 +82,35 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>${titulo}</title>
+  <title>${esc(titulo)}</title>
   <style>${PRINT_STYLES}</style>
 </head>
 <body>
   <div class="print-bar no-print">
-    <button onclick="window.print()">Imprimir</button>
-    <button onclick="window.close()">Cerrar</button>
+    <button type="button" onclick="window.print()">Imprimir</button>
+    <button type="button" onclick="window.close()">Cerrar</button>
   </div>
   ${contenido}
 </body>
 </html>`
 
-  const ventana = window.open('', nombreVentana, 'width=640,height=720,scrollbars=yes')
-  if (ventana) {
-    ventana.document.write(html)
-    ventana.document.close()
+  // about:blank evita que el popup cargue la SPA del padre (React la dejaría en blanco)
+  const ventana = window.open(
+    'about:blank',
+    nombreVentana,
+    'width=640,height=720,scrollbars=yes,resizable=yes',
+  )
+
+  if (!ventana) {
+    window.alert('Permite ventanas emergentes para ver el documento de impresión.')
+    return
   }
+
+  const doc = ventana.document
+  doc.open()
+  doc.write(html)
+  doc.close()
+  ventana.focus()
 }
 
 /**
@@ -104,17 +123,17 @@ export const abrirNotaEntrega = (venta) => {
 
   const filas = lineas.map((s) => `
     <tr>
-      <td>${s.nombre}</td>
+      <td>${esc(s.nombre)}</td>
       <td>${fmt(s.precio)}</td>
     </tr>
   `).join('')
 
-  const resumenTratamientos = lineas.map((s) => s.nombre).join(', ')
+  const resumenTratamientos = lineas.map((s) => esc(s.nombre)).join(', ')
 
   const contenido = `
   <h1>Rim Challouf</h1>
   <div class="header-info">
-    <p><strong>Doctor:</strong> ${venta.doctor}</p>
+    <p><strong>Doctor:</strong> ${esc(venta.doctor)}</p>
     <p><strong>Tratamiento${lineas.length > 1 ? 's' : ''}:</strong> ${resumenTratamientos}</p>
   </div>
   <table>
@@ -150,8 +169,8 @@ export const abrirReporteDiario = (datos) => {
 
     return lineas.map((s) => `
     <tr>
-      <td>${v.doctor}</td>
-      <td>${s.nombre}</td>
+      <td>${esc(v.doctor)}</td>
+      <td>${esc(s.nombre)}</td>
       <td>${fmt(s.precio)}</td>
     </tr>
   `)

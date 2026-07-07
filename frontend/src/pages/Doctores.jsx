@@ -31,6 +31,7 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
   const esEdicion = !!doctor
 
   const [form, setForm]     = useState({
+    cedula:       doctor?.cedula       ?? '',
     nombre:       doctor?.nombre       ?? '',
     especialidad: doctor?.especialidad ?? 'Odontología General',
   })
@@ -51,6 +52,7 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!form.cedula.trim()) { setError('La cédula es requerida.'); return }
     if (!form.nombre.trim()) { setError('El nombre es requerido.'); return }
 
     setLoading(true)
@@ -101,6 +103,17 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
             </div>
           )}
 
+          {/* Cédula */}
+          <div>
+            <label htmlFor="cedula" className="form-label">Cédula</label>
+            <input
+              id="cedula" name="cedula" type="text"
+              value={form.cedula} onChange={handleChange}
+              placeholder="Ej: V-12345678"
+              className="form-input" autoFocus required
+            />
+          </div>
+
           {/* Nombre */}
           <div>
             <label htmlFor="nombre" className="form-label">Nombre completo</label>
@@ -108,7 +121,7 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
               id="nombre" name="nombre" type="text"
               value={form.nombre} onChange={handleChange}
               placeholder="Ej: Dr. Carlos Mendoza"
-              className="form-input" autoFocus required
+              className="form-input" required
             />
           </div>
 
@@ -160,6 +173,7 @@ const Doctores = ({ onToast }) => {
   // Filtro por búsqueda
   const doctoresFiltrados = doctores.filter((d) =>
     d.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    d.cedula?.toLowerCase().includes(busqueda.toLowerCase()) ||
     d.especialidad.toLowerCase().includes(busqueda.toLowerCase())
   )
 
@@ -224,7 +238,14 @@ const Doctores = ({ onToast }) => {
           </p>
         </div>
         <button
-          onClick={() => setModal('nuevo')}
+          onClick={() => setPinConfirm({
+            titulo: 'Autorizar creación',
+            descripcion: 'Registrar nuevo doctor',
+            detalle: 'Se requiere PIN de administrador.',
+            textoConfirmar: 'Continuar',
+            variante: 'warning',
+            onConfirm: () => setModal('nuevo'),
+          })}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <UserPlus size={16} /> Nuevo Doctor
@@ -236,7 +257,7 @@ const Doctores = ({ onToast }) => {
         <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
-          placeholder="Buscar por nombre o especialidad…"
+          placeholder="Buscar por cédula, nombre o especialidad…"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           className="form-input pl-9 py-2.5 text-sm"
@@ -276,7 +297,7 @@ const Doctores = ({ onToast }) => {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {['#', 'Nombre', 'Especialidad', 'Estado', 'Acciones'].map((h) => (
+                  {['#', 'Cédula', 'Nombre', 'Especialidad', 'Estado', 'Acciones'].map((h) => (
                     <th key={h}
                       className="text-left text-xs font-semibold text-slate-400 uppercase
                                  tracking-wider px-6 py-4 first:pl-6">
@@ -286,13 +307,16 @@ const Doctores = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {doctoresFiltrados.map((doc) => (
+                {doctoresFiltrados.map((doc, index) => (
                   <tr key={doc.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${doc.estado === 'inactivo' ? 'opacity-60' : ''}`}>
-                    {/* ID */}
                     <td className="px-6 py-4 text-sm text-slate-400 font-mono">
-                      #{doc.id}
+                      {index + 1}
+                    </td>
+                    {/* Cédula */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-slate-600 font-mono">{doc.cedula || '—'}</span>
                     </td>
                     {/* Nombre */}
                     <td className="px-6 py-4">

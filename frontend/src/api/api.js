@@ -134,7 +134,7 @@ export async function getDoctores() {
 }
 
 // POST /api/doctores.php — Crear doctor
-// @param {{ nombre, especialidad }} datos
+// @param {{ cedula, nombre, especialidad }} datos
 export async function crearDoctor(datos) {
   return apiFetch(`${API_BASE}/doctores.php`, {
     method: 'POST',
@@ -143,7 +143,7 @@ export async function crearDoctor(datos) {
 }
 
 // PUT /api/doctores.php — Actualizar doctor
-// @param {{ id, nombre, especialidad }} datos
+// @param {{ id, cedula, nombre, especialidad }} datos
 export async function actualizarDoctor(datos) {
   return apiFetch(`${API_BASE}/doctores.php`, {
     method: 'PUT',

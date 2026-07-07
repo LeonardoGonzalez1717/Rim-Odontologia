@@ -329,7 +329,14 @@ const Usuarios = ({ onToast }) => {
           </p>
         </div>
         <button
-          onClick={() => setModal('nuevo')}
+          onClick={() => setPinConfirm({
+            titulo: 'Autorizar creación',
+            descripcion: 'Registrar nuevo perfil',
+            detalle: 'Se requiere PIN de administrador.',
+            textoConfirmar: 'Continuar',
+            variante: 'warning',
+            onConfirm: () => setModal('nuevo'),
+          })}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <UserPlus size={16} /> Nuevo Perfil
@@ -422,11 +429,11 @@ const Usuarios = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {usuariosFiltrados.map((u) => (
+                {usuariosFiltrados.map((u, index) => (
                   <tr key={u.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                       ${esSesionActual(u) ? 'bg-pink-50/40' : ''}`}>
-                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">#{u.id}</td>
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{index + 1}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-800">{u.nombre}</span>
