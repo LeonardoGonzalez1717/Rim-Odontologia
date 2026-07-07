@@ -4,7 +4,6 @@
 //   - Estado global: datos del dashboard, formulario, carga
 //   - Navegación por estado: 'dashboard' | 'doctores' | 'servicios' | 'notas' | 'reporte'
 //   - Sidebar lateral fijo con navegación premium
-//   - Polling: recarga automática del dashboard cada 60 segundos
 // =============================================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
@@ -25,8 +24,6 @@ import { useAuth }         from './context/AuthContext'
 import { getDashboard, getDatos, getVentas, cancelarVenta } from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas } from './utils/fechas'
 
-// Intervalo de recarga automática del dashboard (en ms)
-const INTERVALO_RECARGA = 60_000
 const VENTAS_POR_PAGINA = 10
 
 // Definición de las páginas del navbar
@@ -246,17 +243,12 @@ function AdminApp() {
   }, [])
 
   // ─────────────────────────────────────────────────────────────────
-  // Carga inicial + polling
+  // Carga inicial
   // ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     cargarDashboard()
     cargarVentas(1)
     cargarFormData()
-    const intervalo = setInterval(() => {
-      cargarDashboard(fechaVentasRef.current)
-      cargarVentas(paginaVentasRef.current, fechaVentasRef.current)
-    }, INTERVALO_RECARGA)
-    return () => clearInterval(intervalo)
   }, [cargarDashboard, cargarFormData, cargarVentas])
 
   // Al volver al dashboard, recargar datos frescos

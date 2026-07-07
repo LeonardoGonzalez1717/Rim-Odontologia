@@ -25,6 +25,9 @@ export const esHoy = (fecha) => fecha === hoyISO()
 
 export const esAyer = (fecha) => fecha === ayerISO()
 
+/** true si la fecha es anterior al día actual */
+export const esFechaPasada = (fecha) => fecha < hoyISO()
+
 export const formatearFechaLarga = (fecha) =>
   parseFechaLocal(fecha).toLocaleDateString('es-MX', {
     weekday: 'long',

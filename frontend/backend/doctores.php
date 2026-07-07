@@ -4,7 +4,7 @@
 // Métodos:
 //   GET    → Lista todos los doctores (activos e inactivos)
 //   POST   → Crea un nuevo doctor
-//   PUT    → Actualiza nombre y especialidad de un doctor existente
+//   PUT    → Actualiza cédula, nombre y especialidad de un doctor existente
 //   PATCH  → Cambia el estado (activo ↔ inactivo)
 // =============================================================================
 
@@ -30,7 +30,7 @@ try {
     // ─────────────────────────────────────────────────────────────────────────
     if ($method === 'GET') {
         $stmt = $pdo->query(
-            "SELECT id, nombre, especialidad, estado
+            "SELECT id, cedula, nombre, especialidad, estado
              FROM doctores
              ORDER BY nombre ASC"
         );
@@ -55,11 +55,18 @@ try {
 
     // ─────────────────────────────────────────────────────────────────────────
     // POST — Crear nuevo doctor
-    // Body: { "nombre": "...", "especialidad": "..." }
+    // Body: { "cedula": "...", "nombre": "...", "especialidad": "..." }
     // ─────────────────────────────────────────────────────────────────────────
     if ($method === 'POST') {
+        $cedula       = trim($datos['cedula']       ?? '');
         $nombre       = trim($datos['nombre']       ?? '');
         $especialidad = trim($datos['especialidad'] ?? 'Odontología General');
+
+        if (empty($cedula)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'El campo "cedula" es requerido.']);
+            exit;
+        }
 
         if (empty($nombre)) {
             http_response_code(400);
@@ -68,10 +75,14 @@ try {
         }
 
         $stmt = $pdo->prepare(
-            "INSERT INTO doctores (nombre, especialidad, estado)
-             VALUES (:nombre, :especialidad, 'activo')"
+            "INSERT INTO doctores (cedula, nombre, especialidad, estado)
+             VALUES (:cedula, :nombre, :especialidad, 'activo')"
         );
-        $stmt->execute([':nombre' => $nombre, ':especialidad' => $especialidad]);
+        $stmt->execute([
+            ':cedula'       => $cedula,
+            ':nombre'       => $nombre,
+            ':especialidad' => $especialidad,
+        ]);
         $id = (int) $pdo->lastInsertId();
 
         http_response_code(201);
@@ -84,26 +95,28 @@ try {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PUT — Actualizar nombre y especialidad
-    // Body: { "id": 1, "nombre": "...", "especialidad": "..." }
+    // PUT — Actualizar cédula, nombre y especialidad
+    // Body: { "id": 1, "cedula": "...", "nombre": "...", "especialidad": "..." }
     // ─────────────────────────────────────────────────────────────────────────
     if ($method === 'PUT') {
         $id           = (int)   ($datos['id']           ?? 0);
+        $cedula       = trim($datos['cedula']       ?? '');
         $nombre       = trim($datos['nombre']       ?? '');
         $especialidad = trim($datos['especialidad'] ?? '');
 
-        if ($id <= 0 || empty($nombre)) {
+        if ($id <= 0 || empty($cedula) || empty($nombre)) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'ID y nombre son requeridos.']);
+            echo json_encode(['success' => false, 'message' => 'ID, cédula y nombre son requeridos.']);
             exit;
         }
 
         $stmt = $pdo->prepare(
             "UPDATE doctores
-             SET nombre = :nombre, especialidad = :especialidad
+             SET cedula = :cedula, nombre = :nombre, especialidad = :especialidad
              WHERE id = :id"
         );
         $stmt->execute([
+            ':cedula'       => $cedula,
             ':nombre'       => $nombre,
             ':especialidad' => $especialidad,
             ':id'           => $id,

@@ -12,7 +12,6 @@ import {
   hoyISO, etiquetaVentas, mensajeVacioVentas, formatearDMA, esHoy,
 } from '../utils/fechas'
 
-const INTERVALO_RECARGA = 60_000
 const VENTAS_POR_PAGINA = 10
 
 const Toast = ({ mensaje, onClose }) => {
@@ -94,11 +93,6 @@ const AsistenteVenta = () => {
   useEffect(() => {
     cargarDatos()
     cargarVentas(1, hoyISO())
-    const intervalo = setInterval(
-      () => cargarVentas(paginaRef.current, fechaVentasRef.current),
-      INTERVALO_RECARGA,
-    )
-    return () => clearInterval(intervalo)
   }, [cargarDatos, cargarVentas])
 
   const handleVentaGuardada = () => {

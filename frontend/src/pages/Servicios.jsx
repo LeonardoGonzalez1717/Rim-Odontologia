@@ -230,7 +230,14 @@ const Servicios = ({ onToast }) => {
           </p>
         </div>
         <button
-          onClick={() => setModal('nuevo')}
+          onClick={() => setPinConfirm({
+            titulo: 'Autorizar creación',
+            descripcion: 'Registrar nuevo tratamiento',
+            detalle: 'Se requiere PIN de administrador.',
+            textoConfirmar: 'Continuar',
+            variante: 'warning',
+            onConfirm: () => setModal('nuevo'),
+          })}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <PlusCircle size={16} /> Nuevo Tratamiento
@@ -292,12 +299,11 @@ const Servicios = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {serviciosFiltrados.map((svc) => (
+                {serviciosFiltrados.map((svc, index) => (
                   <tr key={svc.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${svc.estado === 'inactivo' ? 'opacity-60' : ''}`}>
-                    {/* ID */}
-                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">#{svc.id}</td>
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{index + 1}</td>
 
                     {/* Nombre */}
                     <td className="px-6 py-4">
