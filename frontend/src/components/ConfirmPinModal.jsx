@@ -3,7 +3,7 @@
 // Modal reutilizable de confirmación con PIN de administrador
 // =============================================================================
 import React, { useState, useEffect, useRef } from 'react'
-import { Shield, Loader2, AlertTriangle, X, KeyRound } from 'lucide-react'
+import { Shield, Loader2, AlertTriangle, X, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { verifyPin } from '../api/api'
 
 const ConfirmPinModal = ({
@@ -18,6 +18,7 @@ const ConfirmPinModal = ({
   const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPin, setShowPin] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -93,24 +94,36 @@ const ConfirmPinModal = ({
                 <KeyRound size={14} className="inline mr-1.5 text-pink-500" />
                 PIN del administrador
               </label>
-              <input
-                ref={inputRef}
-                id="pin-confirm"
-                type="password"
-                inputMode="numeric"
-                pattern="\d{4,6}"
-                maxLength={6}
-                value={pin}
-                onChange={(e) => {
-                  setError('')
-                  setPin(e.target.value.replace(/\D/g, '').slice(0, 6))
-                }}
-                placeholder="••••"
-                className="form-input text-center text-lg tracking-[0.4em] font-mono"
-                autoComplete="off"
-                required
-                disabled={loading}
-              />
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  id="pin-confirm"
+                  type={showPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="\d{4,6}"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => {
+                    setError('')
+                    setPin(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }}
+                  placeholder="••••"
+                  className="form-input text-center text-lg tracking-[0.4em] font-mono pr-11"
+                  autoComplete="off"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin((prev) => !prev)}
+                  disabled={loading}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400
+                             hover:text-slate-600 transition-colors disabled:opacity-40"
+                  aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                >
+                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="text-xs text-slate-400 text-center mt-2">
                 Ingresa el PIN configurado en la cuenta de administrador
               </p>

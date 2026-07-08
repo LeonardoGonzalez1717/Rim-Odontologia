@@ -121,7 +121,7 @@ const Dashboard = ({
           value={formatCurrency(datos.ingresos_dia)}
           icon={DollarSign}
           color="pink"
-          subtitle={esHoy(fechaVentas) ? 'Solo ventas completadas' : formatearFechaCorta(fechaVentas)}
+          subtitle={esHoy(fechaVentas) ? 'Monto en caja · ventas completadas' : formatearFechaCorta(fechaVentas)}
         />
 
         {/* Tratamientos del día */}

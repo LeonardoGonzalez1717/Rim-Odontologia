@@ -9,14 +9,16 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Loader2, AlertCircle, X,
   LayoutDashboard, UserCog, Stethoscope, Menu,
-  ChevronRight, LogOut, UserCircle, Users
+  ChevronRight, LogOut, UserCircle, Users, Contact, CreditCard,
 } from 'lucide-react'
 
 import Dashboard           from './components/Dashboard'
 import RegistrarVentaModal from './components/RegistrarVentaModal'
 import Doctores            from './pages/Doctores'
 import Servicios           from './pages/Servicios'
+import Clientes            from './pages/Clientes'
 import Usuarios            from './pages/Usuarios'
+import AjusteCashea        from './pages/AjusteCashea'
 import Login               from './pages/Login'
 import AsistenteVenta      from './pages/AsistenteVenta'
 import Logo                from './components/Logo'
@@ -30,7 +32,9 @@ const VENTAS_POR_PAGINA = 10
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard',     icon: LayoutDashboard,  section: 'Principal'        },
   { id: 'doctores',  label: 'Doctores',      icon: UserCog,          section: 'Gestión'          },
+  { id: 'clientes',  label: 'Clientes',      icon: Contact,          section: 'Gestión'          },
   { id: 'servicios', label: 'Tratamientos',  icon: Stethoscope,      section: 'Gestión'          },
+  { id: 'ajuste-cashea', label: 'Ajuste Cashea', icon: CreditCard,      section: 'Administración'   },
   { id: 'usuarios',  label: 'Perfiles',      icon: Users,            section: 'Administración'   },
 ]
 
@@ -178,6 +182,7 @@ function AdminApp() {
   // ── Datos del formulario de registro ──
   const [doctores,  setDoctores]  = useState([])
   const [servicios, setServicios] = useState([])
+  const [clientes,  setClientes]  = useState([])
 
   // ── UI ──
   const [modalAbierto, setModalAbierto] = useState(false)
@@ -237,6 +242,7 @@ function AdminApp() {
       const data = await getDatos()
       setDoctores(data.doctores  ?? [])
       setServicios(data.servicios ?? [])
+      setClientes(data.clientes  ?? [])
     } catch (err) {
       console.error('Error al cargar datos del formulario:', err)
     }
@@ -438,9 +444,17 @@ function AdminApp() {
             <Doctores onToast={setToast} />
           )}
 
+          {paginaActual === 'clientes' && (
+            <Clientes onToast={setToast} />
+          )}
+
           {/* ── Vista: Servicios/Tratamientos ── */}
           {paginaActual === 'servicios' && (
             <Servicios onToast={setToast} />
+          )}
+
+          {paginaActual === 'ajuste-cashea' && (
+            <AjusteCashea onToast={setToast} />
           )}
 
           {/* ── Vista: Usuarios ── */}
@@ -464,6 +478,8 @@ function AdminApp() {
           onVentaGuardada={handleVentaGuardada}
           doctores={doctores}
           servicios={servicios}
+          clientes={clientes}
+          onRecargarClientes={cargarFormData}
         />
       )}
 

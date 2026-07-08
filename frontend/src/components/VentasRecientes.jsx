@@ -1,5 +1,5 @@
 // =============================================================================
-// components/VentasRecientes.jsx
+// components/VentasRecientes.jsx — tabla de ventas recientes
 // Tabla de las últimas 10 ventas del día con opción de cancelación
 // Props:
 //   - ventas        {Array}    Lista de ventas del dashboard
@@ -7,11 +7,11 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, FileText } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
-import { abrirNotaEntrega, fmt as formatCurrency } from '../utils/reportesPrint'
+import { fmt as formatCurrency } from '../utils/reportesPrint'
 
 // -----------------------------------------------------------------------------
 // VentasRecientes — Componente principal
@@ -92,7 +92,7 @@ const VentasRecientes = ({
         ) : (
           /* Tabla responsiva con scroll horizontal en móvil */
           <div className="overflow-x-auto -mx-6 px-6">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {mostrarFecha && (
@@ -104,13 +104,16 @@ const VentasRecientes = ({
                     Hora
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Cliente
+                  </th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Doctor
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Servicio
                   </th>
                   <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                    Monto
+                    Monto en caja
                   </th>
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Estado
@@ -118,11 +121,6 @@ const VentasRecientes = ({
                   {!soloLectura && (
                     <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                       Acción
-                    </th>
-                  )}
-                  {soloLectura && (
-                    <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                      Nota
                     </th>
                   )}
                 </tr>
@@ -156,6 +154,13 @@ const VentasRecientes = ({
                         </div>
                       </td>
 
+                      {/* Cliente */}
+                      <td className="py-3.5 pr-4">
+                        <span className="text-sm font-medium text-slate-700">
+                          {venta.cliente || '—'}
+                        </span>
+                      </td>
+
                       {/* Doctor */}
                       <td className="py-3.5 pr-4">
                         <span className="text-sm font-semibold text-slate-700">
@@ -180,9 +185,28 @@ const VentasRecientes = ({
 
                       {/* Monto */}
                       <td className="py-3.5 pr-4 text-right">
-                        <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                          {formatCurrency(venta.total)}
-                        </span>
+                        <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                          {venta.cashea ? (
+                            <>
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                Cashea
+                              </span>
+                              <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                {formatCurrency(venta.monto_caja ?? venta.total)}
+                              </span>
+                              {!esCancelada && (
+                                <span className="text-xs text-slate-500">En caja</span>
+                              )}
+                              <span className={`text-xs ${esCancelada ? 'line-through text-slate-400' : 'text-slate-400'}`}>
+                                Total venta: {formatCurrency(venta.total)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {formatCurrency(venta.total)}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Estado badge */}
@@ -198,39 +222,25 @@ const VentasRecientes = ({
                         )}
                       </td>
 
-                      {/* Acción: nota y opcionalmente cancelar */}
-                      <td className="py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => abrirNotaEntrega(venta)}
-                            className="flex items-center gap-1 text-xs font-semibold
-                                       text-pink-600 bg-pink-50 hover:bg-pink-100
-                                       border border-pink-200 px-2.5 py-1.5 rounded-lg
-                                       transition-all duration-200"
-                            title="Ver Nota de Entrega"
-                          >
-                            <FileText size={13} />
-                            Nota
-                          </button>
-
-                          {!soloLectura && (
-                            estaCancelando ? (
-                              <Loader2 size={16} className="text-pink-500 animate-spin" />
-                            ) : (
-                              <button
-                                onClick={() => handleSolicitarCancelacion(venta.id)}
-                                disabled={esCancelada || !!cancelando}
-                                className="btn-danger"
-                                title={esCancelada ? 'Venta ya cancelada' : 'Cancelar esta venta'}
-                                aria-label={`Cancelar venta ${venta.id}`}
-                              >
-                                <XCircle size={13} className="inline mr-1" />
-                                Cancelar
-                              </button>
-                            )
+                      {/* Acción: cancelar venta */}
+                      {!soloLectura && (
+                        <td className="py-3.5 text-right">
+                          {estaCancelando ? (
+                            <Loader2 size={16} className="text-pink-500 animate-spin inline" />
+                          ) : (
+                            <button
+                              onClick={() => handleSolicitarCancelacion(venta.id)}
+                              disabled={esCancelada || !!cancelando}
+                              className="btn-danger"
+                              title={esCancelada ? 'Venta ya cancelada' : 'Cancelar esta venta'}
+                              aria-label={`Cancelar venta ${venta.id}`}
+                            >
+                              <XCircle size={13} className="inline mr-1" />
+                              Cancelar
+                            </button>
                           )}
-                        </div>
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

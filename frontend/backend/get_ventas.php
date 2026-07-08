@@ -49,14 +49,18 @@ try {
     $offset    = ($pagina - 1) * $porPagina;
 
     $fromSql = "FROM ventas v
-                INNER JOIN doctores d ON v.doctor_id = d.id";
+                INNER JOIN doctores d ON v.doctor_id = d.id
+                LEFT JOIN clientes c ON v.cliente_id = c.id";
 
     $selectSql = "SELECT
                     v.id,
                     DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha,
                     TIME_FORMAT(v.fecha_venta, '%H:%i')    AS hora,
                     d.nombre                                AS doctor,
+                    c.nombre                                AS cliente,
                     v.total,
+                    COALESCE(v.cashea, 0) AS cashea,
+                    COALESCE(v.monto_caja, v.total) AS monto_caja,
                     v.estado
                   $fromSql";
 
@@ -100,12 +104,15 @@ try {
 
     $ventas = array_map(function ($row) {
         return [
-            'id'     => (int)   $row['id'],
-            'fecha'  => $row['fecha'],
-            'hora'   => $row['hora'],
-            'doctor' => $row['doctor'],
-            'total'  => (float) $row['total'],
-            'estado' => $row['estado'],
+            'id'      => (int)   $row['id'],
+            'fecha'   => $row['fecha'],
+            'hora'    => $row['hora'],
+            'doctor'  => $row['doctor'],
+            'cliente' => $row['cliente'],
+            'total'      => (float) $row['total'],
+            'cashea'     => (bool)  $row['cashea'],
+            'monto_caja' => (float) $row['monto_caja'],
+            'estado'     => $row['estado'],
         ];
     }, $stmt->fetchAll());
 

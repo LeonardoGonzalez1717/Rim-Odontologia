@@ -40,11 +40,21 @@ try {
     );
     $servicios = $stmtServicios->fetchAll();
 
+    // --- Consulta de clientes activos ---
+    $stmtClientes = $pdo->query(
+        "SELECT id, cedula, nombre, telefono
+         FROM clientes
+         WHERE estado = 'activo'
+         ORDER BY nombre ASC"
+    );
+    $clientes = $stmtClientes->fetchAll();
+
     // --- Respuesta exitosa ---
     echo json_encode([
-        'success'  => true,
-        'doctores' => $doctores,
+        'success'   => true,
+        'doctores'  => $doctores,
         'servicios' => $servicios,
+        'clientes'  => $clientes,
     ]);
 
 } catch (RuntimeException $e) {

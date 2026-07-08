@@ -49,6 +49,12 @@ try {
         exit;
     }
 
+    if (empty($datos['cliente_id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => "El campo 'cliente_id' es requerido."]);
+        exit;
+    }
+
     // Compatibilidad: aceptar un solo servicio_id o un arreglo servicios
     $lineas = [];
     if (!empty($datos['servicios']) && is_array($datos['servicios'])) {
@@ -67,11 +73,18 @@ try {
     }
 
     $doctor_id   = (int) $datos['doctor_id'];
+    $cliente_id  = (int) $datos['cliente_id'];
     $fecha_venta = !empty($datos['fecha_venta']) ? $datos['fecha_venta'] : date('Y-m-d H:i:s');
 
     if ($doctor_id <= 0) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'El doctor_id debe ser un valor positivo.']);
+        exit;
+    }
+
+    if ($cliente_id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'El cliente_id debe ser un valor positivo.']);
         exit;
     }
 
@@ -115,17 +128,38 @@ try {
         exit;
     }
 
+    $cashea = !empty($datos['cashea']);
+    $montoCaja = isset($datos['monto_caja']) ? (float) $datos['monto_caja'] : $total;
+
+    if ($cashea) {
+        if ($montoCaja <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Indica el monto inicial que ingresa a caja.']);
+            exit;
+        }
+        if ($montoCaja > $total + 0.01) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'El monto inicial no puede ser mayor al total de la venta.']);
+            exit;
+        }
+    } else {
+        $montoCaja = $total;
+    }
+
     $pdo = obtenerConexion();
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, fecha_venta, total, estado)
-         VALUES (:doctor_id, :fecha_venta, :total, 'completada')"
+        "INSERT INTO ventas (doctor_id, cliente_id, fecha_venta, total, cashea, monto_caja, estado)
+         VALUES (:doctor_id, :cliente_id, :fecha_venta, :total, :cashea, :monto_caja, 'completada')"
     );
     $stmtVenta->execute([
         ':doctor_id'   => $doctor_id,
+        ':cliente_id'  => $cliente_id,
         ':fecha_venta' => $fecha_venta,
         ':total'       => $total,
+        ':cashea'      => $cashea ? 1 : 0,
+        ':monto_caja'  => $montoCaja,
     ]);
 
     $nuevoId = (int) $pdo->lastInsertId();

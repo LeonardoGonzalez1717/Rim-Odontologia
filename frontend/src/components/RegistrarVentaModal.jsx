@@ -10,9 +10,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   X, Save, User, Stethoscope, Calendar, DollarSign, Loader2,
-  CheckCircle2, Plus, Trash2,
+  CheckCircle2, Plus, Trash2, Contact, CreditCard,
 } from 'lucide-react'
 import { registrarVenta } from '../api/api'
+import ClienteModal from './ClienteModal'
+import ClienteSelect from './ClienteSelect'
 
 const getFechaHoraActual = () => {
   const ahora = new Date()
@@ -21,18 +23,35 @@ const getFechaHoraActual = () => {
   return local.toISOString().slice(0, 16)
 }
 
+const PORCENTAJE_INICIAL_CASHEA = 0.4
+
+const calcularMontoCajaCashea = (total) =>
+  Math.round(total * PORCENTAJE_INICIAL_CASHEA * 100) / 100
+
 const estadoInicial = {
+  cliente_id: '',
   doctor_id: '',
   fecha_venta: getFechaHoraActual(),
 }
 
-const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicios = [] }) => {
+const RegistrarVentaModal = ({
+  onClose,
+  onVentaGuardada,
+  doctores = [],
+  servicios = [],
+  clientes = [],
+  onRecargarClientes,
+}) => {
   const [form, setForm] = useState(estadoInicial)
   const [servicioSeleccionado, setServicioSeleccionado] = useState('')
   const [lineas, setLineas] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
+  const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
+  const [cashea, setCashea] = useState(false)
+  const [montoCashea, setMontoCashea] = useState('')
+  const [montoCasheaEditado, setMontoCasheaEditado] = useState(false)
 
   const primerCampoRef = useRef(null)
 
@@ -40,6 +59,23 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
     () => lineas.reduce((sum, l) => sum + l.precio, 0),
     [lineas],
   )
+
+  const montoCaja = useMemo(() => {
+    if (!cashea) return total
+    const monto = parseFloat(montoCashea)
+    return Number.isFinite(monto) ? monto : 0
+  }, [cashea, montoCashea, total])
+
+  const montoSugeridoCashea = useMemo(
+    () => (total > 0 ? calcularMontoCajaCashea(total) : 0),
+    [total],
+  )
+
+  useEffect(() => {
+    if (cashea && total > 0 && !montoCasheaEditado) {
+      setMontoCashea(montoSugeridoCashea.toFixed(2))
+    }
+  }, [cashea, total, montoSugeridoCashea, montoCasheaEditado])
 
   useEffect(() => {
     primerCampoRef.current?.focus()
@@ -87,10 +123,20 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
   }
 
   const validar = () => {
+    if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
     if (!form.fecha_venta) return 'Por favor, indica la fecha y hora.'
     if (total <= 0) return 'El monto debe ser mayor a $0.'
+    if (cashea) {
+      const monto = parseFloat(montoCashea)
+      if (!montoCashea || !Number.isFinite(monto) || monto <= 0) {
+        return 'Indica el monto inicial que ingresa a caja.'
+      }
+      if (monto > total) {
+        return 'El monto inicial no puede ser mayor al total de la venta.'
+      }
+    }
     return ''
   }
 
@@ -110,9 +156,12 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
       const fechaFormateada = form.fecha_venta.replace('T', ' ') + ':00'
 
       await registrarVenta({
+        cliente_id: parseInt(form.cliente_id),
         doctor_id: parseInt(form.doctor_id),
         fecha_venta: fechaFormateada,
         total,
+        cashea,
+        monto_caja: montoCaja,
         servicios: lineas.map((l) => ({
           servicio_id: l.servicio_id,
           precio: l.precio,
@@ -125,6 +174,9 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
         setForm({ ...estadoInicial, fecha_venta: getFechaHoraActual() })
         setLineas([])
         setServicioSeleccionado('')
+        setCashea(false)
+        setMontoCashea('')
+        setMontoCasheaEditado(false)
         onVentaGuardada()
       }, 1200)
     } catch (err) {
@@ -134,9 +186,24 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
     }
   }
 
+  const handleClienteGuardado = async (nuevoCliente) => {
+    setModalClienteAbierto(false)
+    if (onRecargarClientes) await onRecargarClientes()
+    if (nuevoCliente?.id) {
+      setForm((prev) => ({ ...prev, cliente_id: String(nuevoCliente.id) }))
+    }
+  }
+
   const serviciosDisponibles = servicios
 
   return (
+    <>
+    {modalClienteAbierto && (
+      <ClienteModal
+        onClose={() => setModalClienteAbierto(false)}
+        onGuardado={handleClienteGuardado}
+      />
+    )}
     <div
       className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -160,7 +227,9 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+
+          <div className="px-7 py-6 space-y-5 overflow-y-auto flex-1 min-h-0">
 
           {exito && (
             <div className="flex items-center gap-3 bg-pink-50 border border-pink-200
@@ -179,6 +248,37 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
           )}
 
           <div>
+            <label htmlFor="cliente_id" className="form-label">
+              <Contact size={14} className="inline mr-1.5 text-pink-500" />
+              Cliente
+            </label>
+            <div className="flex gap-2">
+              <div className="flex-1 min-w-0">
+                <ClienteSelect
+                  id="cliente_id"
+                  clientes={clientes}
+                  value={form.cliente_id}
+                  onChange={(val) => {
+                    setError('')
+                    setForm((prev) => ({ ...prev, cliente_id: val }))
+                  }}
+                  placeholder="Buscar por cédula o nombre…"
+                  inputRef={primerCampoRef}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalClienteAbierto(true)}
+                className="btn-secondary flex items-center gap-1.5 px-3 whitespace-nowrap"
+                title="Registrar nuevo cliente"
+              >
+                <Plus size={16} />
+                Nuevo
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label htmlFor="doctor_id" className="form-label">
               <User size={14} className="inline mr-1.5 text-pink-500" />
               Doctor
@@ -189,7 +289,6 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
               value={form.doctor_id}
               onChange={handleChange}
               className="form-input"
-              ref={primerCampoRef}
               required
             >
               <option value="">— Selecciona un doctor —</option>
@@ -267,7 +366,7 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
           <div>
             <label htmlFor="total" className="form-label">
               <DollarSign size={14} className="inline mr-1.5 text-pink-500" />
-              Total ($)
+              Total de la venta ($)
               {lineas.length > 0 && (
                 <span className="ml-2 text-xs text-pink-600 font-normal">
                   {lineas.length} {lineas.length === 1 ? 'tratamiento' : 'tratamientos'}
@@ -289,6 +388,78 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
             </div>
           </div>
 
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={cashea}
+                onChange={(e) => {
+                  setError('')
+                  const activo = e.target.checked
+                  setCashea(activo)
+                  if (activo) {
+                    setMontoCasheaEditado(false)
+                    if (total > 0) {
+                      setMontoCashea(calcularMontoCajaCashea(total).toFixed(2))
+                    }
+                  } else {
+                    setMontoCashea('')
+                    setMontoCasheaEditado(false)
+                  }
+                }}
+                className="mt-1 w-4 h-4 rounded border-slate-300 text-pink-600
+                           focus:ring-pink-500 cursor-pointer"
+              />
+              <div>
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 group-hover:text-slate-900">
+                  <CreditCard size={14} className="text-pink-500" />
+                  Pago con Cashea
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  Financiamiento: por defecto el 40% del total ingresa a caja (puedes ajustarlo).
+                </p>
+              </div>
+            </label>
+
+            {cashea && (
+              <div className="pl-7 animate-slide-up space-y-2">
+                <label htmlFor="monto_cashea" className="form-label">
+                  Monto inicial en caja ($)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
+                    $
+                  </span>
+                  <input
+                    id="monto_cashea"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={total > 0 ? total : undefined}
+                    value={montoCashea}
+                    onChange={(e) => {
+                      setError('')
+                      setMontoCasheaEditado(true)
+                      setMontoCashea(e.target.value)
+                    }}
+                    placeholder="0.00"
+                    className="form-input pl-8"
+                  />
+                </div>
+                {total > 0 && (
+                  <p className="text-xs text-slate-500">
+                    Sugerido (40%): ${montoSugeridoCashea.toFixed(2)} · Total venta: ${total.toFixed(2)}
+                  </p>
+                )}
+                {total > 0 && montoCaja > 0 && (
+                  <p className="text-xs text-pink-600 font-medium">
+                    Ingresa a caja hoy: ${montoCaja.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div>
             <label htmlFor="fecha_venta" className="form-label">
               <Calendar size={14} className="inline mr-1.5 text-pink-500" />
@@ -305,7 +476,9 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          </div>
+
+          <div className="flex-shrink-0 px-7 py-4 border-t border-slate-100 bg-white rounded-b-3xl flex gap-3">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
               Cancelar
             </button>
@@ -330,6 +503,7 @@ const RegistrarVentaModal = ({ onClose, onVentaGuardada, doctores = [], servicio
         </form>
       </div>
     </div>
+    </>
   )
 }
 

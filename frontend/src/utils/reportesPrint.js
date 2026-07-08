@@ -154,6 +154,7 @@ export const abrirNotaEntrega = (venta) => {
   </div>
   <div class="header-info">
     <div class="report-meta">
+      <p><strong>Cliente:</strong> ${venta.cliente || '—'}</p>
       <p><strong>Doctor:</strong> ${venta.doctor}</p>
       <p style="color: #666;"><strong>Fecha:</strong> ${venta.fecha_venta ? venta.fecha_venta : ' '}</p>
     </div>

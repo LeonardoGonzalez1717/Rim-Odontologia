@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `doctor_id`    INT(11)        NOT NULL,
   `fecha_venta`  TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `total`        DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `cashea`       TINYINT(1)     NOT NULL DEFAULT 0,
+  `monto_caja`   DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `estado`       ENUM('completada','cancelada') NOT NULL DEFAULT 'completada',
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_venta_doctor`
@@ -67,6 +69,19 @@ CREATE TABLE IF NOT EXISTS `venta_detalles` (
     FOREIGN KEY (`venta_id`)    REFERENCES `ventas`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_detalle_servicio`
     FOREIGN KEY (`servicio_id`) REFERENCES `servicios_tratamientos`(`id`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- TABLA: ajustes_cashea
+-- Cuotas de Cashea registradas manualmente que ingresan a caja
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS `ajustes_cashea` (
+  `id`            INT(11)        NOT NULL AUTO_INCREMENT,
+  `monto`         DECIMAL(10, 2) NOT NULL,
+  `concepto`      VARCHAR(100)   NOT NULL DEFAULT 'Cuota de Cashea',
+  `fecha_ingreso` TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at`    TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================

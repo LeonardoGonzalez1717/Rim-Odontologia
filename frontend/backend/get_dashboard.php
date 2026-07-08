@@ -36,15 +36,23 @@ try {
         exit;
     }
 
-    // 1. Suma total de ingresos del día (solo ventas 'completada')
+    // 1. Suma de ingresos en caja del día (monto_caja; si no existe la columna, usar total)
     $stmtIngresos = $pdo->prepare(
-        "SELECT COALESCE(SUM(total), 0) AS ingresos_dia
-         FROM ventas
-         WHERE DATE(fecha_venta) = :fecha
-           AND estado = 'completada'"
+        "SELECT COALESCE(SUM(COALESCE(v.monto_caja, v.total)), 0) AS ingresos_dia
+         FROM ventas v
+         WHERE DATE(v.fecha_venta) = :fecha
+           AND v.estado = 'completada'"
     );
     $stmtIngresos->execute([':fecha' => $fecha]);
-    $ingresosDia = (float) $stmtIngresos->fetchColumn();
+    $ingresosVentas = (float) $stmtIngresos->fetchColumn();
+
+    $stmtCuotas = $pdo->prepare(
+        "SELECT COALESCE(SUM(monto), 0) FROM ajustes_cashea WHERE DATE(fecha_ingreso) = :fecha"
+    );
+    $stmtCuotas->execute([':fecha' => $fecha]);
+    $ingresosCuotasCashea = (float) $stmtCuotas->fetchColumn();
+
+    $ingresosDia = $ingresosVentas + $ingresosCuotasCashea;
 
     // 2. Cantidad de tratamientos realizados hoy (líneas de detalle completadas)
     $stmtTratamientos = $pdo->prepare(
@@ -98,10 +106,14 @@ try {
             v.id,
             TIME_FORMAT(v.fecha_venta, '%H:%i') AS hora,
             d.nombre                             AS doctor,
+            c.nombre                             AS cliente,
             v.total,
+            COALESCE(v.cashea, 0) AS cashea,
+            COALESCE(v.monto_caja, v.total) AS monto_caja,
             v.estado
          FROM ventas v
          INNER JOIN doctores d ON v.doctor_id = d.id
+         LEFT JOIN clientes c ON v.cliente_id = c.id
          WHERE DATE(v.fecha_venta) = :fecha
          ORDER BY v.fecha_venta DESC
          LIMIT 10"
@@ -110,11 +122,14 @@ try {
 
     $ventasRecientes = array_map(function ($row) {
         return [
-            'id'     => (int)   $row['id'],
-            'hora'   => $row['hora'],
-            'doctor' => $row['doctor'],
-            'total'  => (float) $row['total'],
-            'estado' => $row['estado'],
+            'id'      => (int)   $row['id'],
+            'hora'    => $row['hora'],
+            'doctor'  => $row['doctor'],
+            'cliente' => $row['cliente'],
+            'total'      => (float) $row['total'],
+            'cashea'     => (bool)  $row['cashea'],
+            'monto_caja' => (float) $row['monto_caja'],
+            'estado'     => $row['estado'],
         ];
     }, $stmtRecientes->fetchAll());
 
@@ -124,6 +139,8 @@ try {
         'success'             => true,
         'fecha'               => $fecha,
         'ingresos_dia'        => $ingresosDia,
+        'ingresos_ventas'     => $ingresosVentas,
+        'ingresos_cuotas_cashea' => $ingresosCuotasCashea,
         'total_tratamientos'  => $totalTratamientos,
         'ventas_por_doctor'   => $ventasPorDoctor,
         'ventas_recientes'    => $ventasRecientes,

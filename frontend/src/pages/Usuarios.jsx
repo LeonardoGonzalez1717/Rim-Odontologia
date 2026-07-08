@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   UserPlus, Pencil, Trash2, Loader2, Search, X, Save, Users,
-  Shield, UserCheck, XCircle, Lock, User, KeyRound,
+  Shield, UserCheck, XCircle, Lock, User, KeyRound, Eye, EyeOff,
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
 import { useAuth } from '../context/AuthContext'
@@ -28,6 +28,8 @@ const UsuarioModal = ({ usuario, onClose, onGuardado }) => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showPin, setShowPin] = useState(false)
 
   useEffect(() => {
     const fn = (e) => { if (e.key === 'Escape') onClose() }
@@ -180,13 +182,25 @@ const UsuarioModal = ({ usuario, onClose, onGuardado }) => {
               <Lock size={14} className="inline mr-1.5 text-pink-500" />
               {esEdicion ? 'Nueva contraseña' : 'Contraseña'}
             </label>
-            <input
-              id="password" name="password" type="password"
-              value={form.password} onChange={handleChange}
-              placeholder={esEdicion ? 'Dejar vacío para no cambiar' : 'Mínimo 4 caracteres'}
-              className="form-input" autoComplete="new-password"
-              required={!esEdicion}
-            />
+            <div className="relative">
+              <input
+                id="password" name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={form.password} onChange={handleChange}
+                placeholder={esEdicion ? 'Dejar vacío para no cambiar' : 'Mínimo 4 caracteres'}
+                className="form-input pr-11" autoComplete="new-password"
+                required={!esEdicion}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400
+                           hover:text-slate-600 transition-colors"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {form.rol === 'admin' && (
@@ -195,27 +209,39 @@ const UsuarioModal = ({ usuario, onClose, onGuardado }) => {
                 <KeyRound size={14} className="inline mr-1.5 text-pink-500" />
                 PIN de administrador
               </label>
-              <input
-                id="pin" name="pin" type="password"
-                inputMode="numeric"
-                maxLength={6}
-                value={form.pin}
-                onChange={(e) => {
-                  setError('')
-                  setForm((prev) => ({
-                    ...prev,
-                    pin: e.target.value.replace(/\D/g, '').slice(0, 6),
-                  }))
-                }}
-                placeholder={
-                  esEdicion && usuario?.tiene_pin
-                    ? 'Dejar vacío para no cambiar'
-                    : '4 a 6 dígitos numéricos'
-                }
-                className="form-input font-mono tracking-widest"
-                autoComplete="off"
-                required={!esEdicion || !usuario?.tiene_pin}
-              />
+              <div className="relative">
+                <input
+                  id="pin" name="pin"
+                  type={showPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={form.pin}
+                  onChange={(e) => {
+                    setError('')
+                    setForm((prev) => ({
+                      ...prev,
+                      pin: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    }))
+                  }}
+                  placeholder={
+                    esEdicion && usuario?.tiene_pin
+                      ? 'Dejar vacío para no cambiar'
+                      : '4 a 6 dígitos numéricos'
+                  }
+                  className="form-input font-mono tracking-widest pr-11"
+                  autoComplete="off"
+                  required={!esEdicion || !usuario?.tiene_pin}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400
+                             hover:text-slate-600 transition-colors"
+                  aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                >
+                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="text-xs text-slate-400 mt-1.5">
                 Se solicita para confirmar acciones sensibles (cancelar ventas, editar, eliminar, etc.)
               </p>

@@ -84,7 +84,7 @@ export async function getVentas({ fecha, todas = false, pagina = 1, por_pagina =
 }
 
 // -----------------------------------------------------------------------------
-// getDatos() — Obtiene doctores y servicios activos para los selectores
+// getDatos() — Obtiene doctores, servicios y clientes activos para los selectores
 // Endpoint: GET /api/get_data.php
 // -----------------------------------------------------------------------------
 export async function getDatos() {
@@ -161,6 +161,42 @@ export async function toggleDoctor(id) {
 }
 
 // =============================================================================
+// CLIENTES
+// =============================================================================
+
+// GET /api/clientes.php — Lista completa (activos + inactivos)
+export async function getClientes() {
+  return apiFetch(`${API_BASE}/clientes.php`)
+}
+
+// POST /api/clientes.php — Crear cliente
+// @param {{ cedula, nombre, telefono }} datos
+export async function crearCliente(datos) {
+  return apiFetch(`${API_BASE}/clientes.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}
+
+// PUT /api/clientes.php — Actualizar cliente
+// @param {{ id, cedula, nombre, telefono }} datos
+export async function actualizarCliente(datos) {
+  return apiFetch(`${API_BASE}/clientes.php`, {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  })
+}
+
+// PATCH /api/clientes.php — Toggle estado activo/inactivo
+// @param {number} id
+export async function toggleCliente(id) {
+  return apiFetch(`${API_BASE}/clientes.php`, {
+    method: 'PATCH',
+    body: JSON.stringify({ id }),
+  })
+}
+
+// =============================================================================
 // SERVICIOS / TRATAMIENTOS
 // =============================================================================
 
@@ -229,5 +265,22 @@ export async function eliminarUsuario(id) {
   return apiFetch(`${API_BASE}/usuarios.php`, {
     method: 'DELETE',
     body: JSON.stringify({ id }),
+  })
+}
+
+// =============================================================================
+// AJUSTES CASHEA
+// =============================================================================
+
+export async function getAjustesCashea(fecha) {
+  const params = new URLSearchParams()
+  if (fecha) params.set('fecha', fecha)
+  return apiFetch(`${API_BASE}/ajustes_cashea.php?${params}`)
+}
+
+export async function registrarAjusteCashea(datos) {
+  return apiFetch(`${API_BASE}/ajustes_cashea.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
   })
 }
