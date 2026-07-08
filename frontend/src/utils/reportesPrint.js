@@ -147,8 +147,6 @@ export const abrirNotaEntrega = (venta) => {
     </tr>
   `).join('')
 
-  const resumenTratamientos = lineas.map((s) => esc(s.nombre)).join(', ')
-
   const contenido = `
   <div class="brand-header">
     <img src="./public/logoBlanco.png" alt="Logo" class="brand-logo" />
@@ -157,7 +155,7 @@ export const abrirNotaEntrega = (venta) => {
   <div class="header-info">
     <div class="report-meta">
       <p><strong>Doctor:</strong> ${venta.doctor}</p>
-      <p style="color: #666;"><strong>Fecha:</strong> ${fmtFecha(venta.fecha_venta)}</p>
+      <p style="color: #666;"><strong>Fecha:</strong> ${venta.fecha_venta ? venta.fecha_venta : ' '}</p>
     </div>
   </div>
   <table>
@@ -213,7 +211,7 @@ export const abrirReporteDiario = (datos) => {
   <div class="header-info">
     <div class="report-meta">
       <p style="font-size: 16px; font-weight: 600; color: #555;">Reporte de Ventas</p>
-      <p style="color: #666;"><strong>Fecha:</strong> ${fmtFecha(fechaReporte)}</p>
+      <p style="color: #666;"><strong>Fecha:</strong> ${fechaReporte ? fechaReporte : ' '}</p>
     </div>
   </div>
   <table>
