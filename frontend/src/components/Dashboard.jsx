@@ -3,6 +3,7 @@ import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2 } from 'luci
 import MetricCard from './MetricCard'
 import VentasPorDoctor from './VentasPorDoctor'
 import VentasRecientes from './VentasRecientes'
+import CuotasCashea from './CuotasCashea'
 import FiltroFechaVentas from './FiltroFechaVentas'
 import { abrirReporteDiario } from '../utils/reportesPrint'
 import { getVentas } from '../api/api'
@@ -73,6 +74,14 @@ const Dashboard = ({
     )
   }
 
+  const ingresosVentas = datos.ingresos_ventas ?? datos.ingresos_dia ?? 0
+  const ingresosCashea = datos.ingresos_cuotas_cashea ?? 0
+  const subtituloIngresos = ingresosCashea > 0
+    ? `${formatCurrency(ingresosVentas)} ventas · ${formatCurrency(ingresosCashea)} Cashea`
+    : esHoy(fechaVentas)
+      ? 'Monto en caja · ventas completadas'
+      : formatearFechaCorta(fechaVentas)
+
   return (
     <div className="space-y-6">
       {/* ── Filtro de fecha (métricas + ventas) ── */}
@@ -121,7 +130,7 @@ const Dashboard = ({
           value={formatCurrency(datos.ingresos_dia)}
           icon={DollarSign}
           color="pink"
-          subtitle={esHoy(fechaVentas) ? 'Monto en caja · ventas completadas' : formatearFechaCorta(fechaVentas)}
+          subtitle={subtituloIngresos}
         />
 
         {/* Tratamientos del día */}
@@ -147,14 +156,12 @@ const Dashboard = ({
         /> */}
       </div>
 
-      {/* ── Fila 2: Ventas por Doctor + Ventas Recientes (Uno debajo del otro) ── */}
+      {/* ── Fila 2: Ventas por Doctor + Ventas Recientes + Cuotas Cashea ── */}
       <div className="grid grid-cols-1 gap-5">
-        {/* Ventas por Doctor */}
         <div>
           <VentasPorDoctor datos={datos.ventas_por_doctor ?? []} />
         </div>
 
-        {/* Ventas Recientes */}
         <div>
           <VentasRecientes
             ventas={ventas}
@@ -166,6 +173,13 @@ const Dashboard = ({
             ocultarFiltro
             titulo={tituloVentas}
             mensajeVacio={mensajeVacioVentas}
+          />
+        </div>
+
+        <div>
+          <CuotasCashea
+            datos={datos.cuotas_cashea ?? []}
+            total={ingresosCashea}
           />
         </div>
       </div>

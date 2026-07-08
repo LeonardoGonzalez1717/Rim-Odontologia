@@ -202,7 +202,19 @@ export const abrirReporteDiario = (datos) => {
   `)
   }).join('')
 
-  const total = datos.ingresos_dia ?? ventas.reduce((sum, v) => sum + v.total, 0)
+  const totalVentas = datos.ingresos_ventas ?? ventas.reduce((sum, v) => sum + (v.monto_caja ?? v.total), 0)
+  const totalCashea = datos.ingresos_cuotas_cashea ?? 0
+  const cuotas = datos.cuotas_cashea ?? []
+
+  const filasCashea = cuotas.map((c) => `
+    <tr>
+      <td>${esc(c.concepto)}</td>
+      <td>${esc(c.hora)}</td>
+      <td>${fmt(c.monto)}</td>
+    </tr>
+  `).join('')
+
+  const total = datos.ingresos_dia ?? totalVentas + totalCashea
 
   const contenido = `
   <div class="brand-header">
@@ -227,7 +239,25 @@ export const abrirReporteDiario = (datos) => {
       ${filas || '<tr><td colspan="3" style="text-align:center;color:#666;">Sin ventas</td></tr>'}
     </tbody>
   </table>
-  <div class="total">Total: ${fmt(total)}</div>`
+  ${cuotas.length > 0 ? `
+  <p style="margin: 20px 0 8px; font-weight: 600;">Cuotas Cashea</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Concepto</th>
+        <th>Hora</th>
+        <th>Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filasCashea}
+    </tbody>
+  </table>` : ''}
+  <div class="total">
+    ${totalCashea > 0
+      ? `Ventas: ${fmt(totalVentas)} · Cashea: ${fmt(totalCashea)}<br>Total: ${fmt(total)}`
+      : `Total: ${fmt(total)}`}
+  </div>`
 
   abrirVentanaImpresion(
     `Reporte de Ventas — Rim Challouf`,

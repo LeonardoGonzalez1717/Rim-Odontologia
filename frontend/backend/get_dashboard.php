@@ -54,6 +54,24 @@ try {
 
     $ingresosDia = $ingresosVentas + $ingresosCuotasCashea;
 
+    // Cuotas Cashea del día (detalle para el dashboard)
+    $stmtCuotasLista = $pdo->prepare(
+        "SELECT id, monto, concepto,
+                TIME_FORMAT(fecha_ingreso, '%H:%i') AS hora
+         FROM ajustes_cashea
+         WHERE DATE(fecha_ingreso) = :fecha
+         ORDER BY fecha_ingreso DESC"
+    );
+    $stmtCuotasLista->execute([':fecha' => $fecha]);
+    $cuotasCashea = array_map(function ($row) {
+        return [
+            'id'       => (int) $row['id'],
+            'monto'    => (float) $row['monto'],
+            'concepto' => $row['concepto'],
+            'hora'     => $row['hora'],
+        ];
+    }, $stmtCuotasLista->fetchAll());
+
     // 2. Cantidad de tratamientos realizados hoy (líneas de detalle completadas)
     $stmtTratamientos = $pdo->prepare(
         "SELECT COUNT(vd.id) AS total_tratamientos
@@ -141,6 +159,7 @@ try {
         'ingresos_dia'        => $ingresosDia,
         'ingresos_ventas'     => $ingresosVentas,
         'ingresos_cuotas_cashea' => $ingresosCuotasCashea,
+        'cuotas_cashea'       => $cuotasCashea,
         'total_tratamientos'  => $totalTratamientos,
         'ventas_por_doctor'   => $ventasPorDoctor,
         'ventas_recientes'    => $ventasRecientes,
