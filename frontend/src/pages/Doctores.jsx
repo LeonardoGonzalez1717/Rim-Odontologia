@@ -11,28 +11,21 @@ import ConfirmPinModal from '../components/ConfirmPinModal'
 import {
   getDoctores, crearDoctor, actualizarDoctor, toggleDoctor,
 } from '../api/api'
+import {
+  filtrarCedula, filtrarNombre, validarDoctor, ESPECIALIDADES_DOCTOR,
+} from '../utils/validarPersona'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modal de Crear / Editar Doctor
 // ─────────────────────────────────────────────────────────────────────────────
-const ESPECIALIDADES = [
-  'Odontología General',
-  'Ortodoncia',
-  'Endodoncia',
-  'Periodoncia',
-  'Cirugía Oral y Maxilofacial',
-  'Odontopediatría',
-  'Prostodoncia',
-  'Implantología',
-  'Estética Dental',
-]
+const ESPECIALIDADES = ESPECIALIDADES_DOCTOR
 
 const DoctorModal = ({ doctor, onClose, onGuardado }) => {
   const esEdicion = !!doctor
 
-  const [form, setForm]     = useState({
-    cedula:       doctor?.cedula       ?? '',
-    nombre:       doctor?.nombre       ?? '',
+  const [form, setForm] = useState({
+    cedula:       filtrarCedula(doctor?.cedula ?? ''),
+    nombre:       filtrarNombre(doctor?.nombre ?? ''),
     especialidad: doctor?.especialidad ?? 'Odontología General',
   })
   const [loading, setLoading] = useState(false)
@@ -46,22 +39,34 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
   }, [onClose])
 
   const handleChange = (e) => {
+    const { name, value } = e.target
     setError('')
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+
+    let valor = value
+    if (name === 'cedula') valor = filtrarCedula(value)
+    if (name === 'nombre') valor = filtrarNombre(value)
+
+    setForm((prev) => ({ ...prev, [name]: valor }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.cedula.trim()) { setError('La cédula es requerida.'); return }
-    if (!form.nombre.trim()) { setError('El nombre es requerido.'); return }
+
+    const resultado = validarDoctor(form)
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
+    }
+
+    const datos = resultado.datos
 
     setLoading(true)
     setError('')
     try {
       if (esEdicion) {
-        await actualizarDoctor({ id: doctor.id, ...form })
+        await actualizarDoctor({ id: doctor.id, ...datos })
       } else {
-        await crearDoctor(form)
+        await crearDoctor(datos)
       }
       onGuardado()
     } catch (err) {
@@ -107,22 +112,37 @@ const DoctorModal = ({ doctor, onClose, onGuardado }) => {
           <div>
             <label htmlFor="cedula" className="form-label">Cédula</label>
             <input
-              id="cedula" name="cedula" type="text"
-              value={form.cedula} onChange={handleChange}
-              placeholder="Ej: V-12345678"
-              className="form-input" autoFocus required
+              id="cedula"
+              name="cedula"
+              type="text"
+              inputMode="numeric"
+              pattern="\d*"
+              value={form.cedula}
+              onChange={handleChange}
+              placeholder="Ej: 12345678"
+              className="form-input"
+              autoFocus
+              required
+              minLength={6}
+              maxLength={12}
             />
+            <p className="text-xs text-slate-400 mt-1">Solo números · mínimo 6 dígitos</p>
           </div>
 
-          {/* Nombre */}
           <div>
             <label htmlFor="nombre" className="form-label">Nombre completo</label>
             <input
-              id="nombre" name="nombre" type="text"
-              value={form.nombre} onChange={handleChange}
-              placeholder="Ej: Dr. Carlos Mendoza"
-              className="form-input" required
+              id="nombre"
+              name="nombre"
+              type="text"
+              value={form.nombre}
+              onChange={handleChange}
+              placeholder="Ej: Carlos Mendoza"
+              className="form-input"
+              required
+              minLength={3}
             />
+            <p className="text-xs text-slate-400 mt-1">Solo letras · mínimo 3 caracteres</p>
           </div>
 
           {/* Especialidad */}

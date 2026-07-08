@@ -4,14 +4,17 @@
 import React, { useState, useEffect } from 'react'
 import { X, Save, Loader2, Phone } from 'lucide-react'
 import { crearCliente, actualizarCliente } from '../api/api'
+import {
+  filtrarCedula, filtrarNombre, filtrarTelefono, validarCliente,
+} from '../utils/validarCliente'
 
 const ClienteModal = ({ cliente, onClose, onGuardado }) => {
   const esEdicion = !!cliente
 
   const [form, setForm] = useState({
-    cedula:   cliente?.cedula   ?? '',
-    nombre:   cliente?.nombre   ?? '',
-    telefono: cliente?.telefono ?? '',
+    cedula:   filtrarCedula(cliente?.cedula   ?? ''),
+    nombre:   filtrarNombre(cliente?.nombre   ?? ''),
+    telefono: filtrarTelefono(cliente?.telefono ?? ''),
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,28 +26,39 @@ const ClienteModal = ({ cliente, onClose, onGuardado }) => {
   }, [onClose, loading])
 
   const handleChange = (e) => {
+    const { name, value } = e.target
     setError('')
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+
+    let valor = value
+    if (name === 'cedula') valor = filtrarCedula(value)
+    if (name === 'nombre') valor = filtrarNombre(value)
+    if (name === 'telefono') valor = filtrarTelefono(value)
+
+    setForm((prev) => ({ ...prev, [name]: valor }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.cedula.trim()) { setError('La cédula es requerida.'); return }
-    if (!form.nombre.trim()) { setError('El nombre es requerido.'); return }
+
+    const resultado = validarCliente(form)
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
+    }
+
+    const datos = resultado.datos
 
     setLoading(true)
     setError('')
     try {
       if (esEdicion) {
-        await actualizarCliente({ id: cliente.id, ...form })
+        await actualizarCliente({ id: cliente.id, ...datos })
         onGuardado()
       } else {
-        const res = await crearCliente(form)
+        const res = await crearCliente(datos)
         onGuardado({
           id: res.id,
-          cedula: form.cedula.trim(),
-          nombre: form.nombre.trim(),
-          telefono: form.telefono.trim() || null,
+          ...datos,
         })
       }
     } catch (err) {
@@ -88,34 +102,57 @@ const ClienteModal = ({ cliente, onClose, onGuardado }) => {
           <div>
             <label htmlFor="cliente-cedula" className="form-label">Cédula</label>
             <input
-              id="cliente-cedula" name="cedula" type="text"
-              value={form.cedula} onChange={handleChange}
-              placeholder="Ej: V-12345678"
-              className="form-input" autoFocus required
+              id="cliente-cedula"
+              name="cedula"
+              type="text"
+              inputMode="numeric"
+              pattern="\d*"
+              value={form.cedula}
+              onChange={handleChange}
+              placeholder="Ej: 12345678"
+              className="form-input"
+              autoFocus
+              required
+              minLength={6}
+              maxLength={12}
             />
+            <p className="text-xs text-slate-400 mt-1">Solo números · mínimo 6 dígitos</p>
           </div>
 
           <div>
             <label htmlFor="cliente-nombre" className="form-label">Nombre completo</label>
             <input
-              id="cliente-nombre" name="nombre" type="text"
-              value={form.nombre} onChange={handleChange}
+              id="cliente-nombre"
+              name="nombre"
+              type="text"
+              value={form.nombre}
+              onChange={handleChange}
               placeholder="Ej: María González"
-              className="form-input" required
+              className="form-input"
+              required
+              minLength={3}
             />
+            <p className="text-xs text-slate-400 mt-1">Solo letras · mínimo 3 caracteres</p>
           </div>
 
           <div>
             <label htmlFor="cliente-telefono" className="form-label">
               <Phone size={14} className="inline mr-1 text-pink-500" />
-              Teléfono
+              Teléfono <span className="font-normal text-slate-400">(opcional)</span>
             </label>
             <input
-              id="cliente-telefono" name="telefono" type="tel"
-              value={form.telefono} onChange={handleChange}
-              placeholder="Ej: 0414-1234567"
+              id="cliente-telefono"
+              name="telefono"
+              type="tel"
+              inputMode="numeric"
+              pattern="\d*"
+              value={form.telefono}
+              onChange={handleChange}
+              placeholder="Ej: 04141234567"
               className="form-input"
+              maxLength={11}
             />
+            <p className="text-xs text-slate-400 mt-1">Solo números · 10 dígitos si lo indicas</p>
           </div>
 
           <div className="flex gap-3 pt-2">

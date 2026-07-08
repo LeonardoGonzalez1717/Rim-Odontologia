@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'persona_validacion.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -58,30 +59,27 @@ try {
     // Body: { "cedula": "...", "nombre": "...", "especialidad": "..." }
     // ─────────────────────────────────────────────────────────────────────────
     if ($method === 'POST') {
-        $cedula       = trim($datos['cedula']       ?? '');
-        $nombre       = trim($datos['nombre']       ?? '');
-        $especialidad = trim($datos['especialidad'] ?? 'Odontología General');
+        $cedula       = $datos['cedula']       ?? '';
+        $nombre       = $datos['nombre']       ?? '';
+        $especialidad = $datos['especialidad'] ?? 'Odontología General';
 
-        if (empty($cedula)) {
+        $errorValidacion = validarDatosDoctor($cedula, $nombre, $especialidad);
+        if ($errorValidacion !== null) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'El campo "cedula" es requerido.']);
+            echo json_encode(['success' => false, 'message' => $errorValidacion]);
             exit;
         }
 
-        if (empty($nombre)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'El campo "nombre" es requerido.']);
-            exit;
-        }
+        $normalizado = normalizarDatosDoctor($cedula, $nombre, $especialidad);
 
         $stmt = $pdo->prepare(
             "INSERT INTO doctores (cedula, nombre, especialidad, estado)
              VALUES (:cedula, :nombre, :especialidad, 'activo')"
         );
         $stmt->execute([
-            ':cedula'       => $cedula,
-            ':nombre'       => $nombre,
-            ':especialidad' => $especialidad,
+            ':cedula'       => $normalizado['cedula'],
+            ':nombre'       => $normalizado['nombre'],
+            ':especialidad' => $normalizado['especialidad'],
         ]);
         $id = (int) $pdo->lastInsertId();
 
@@ -89,7 +87,7 @@ try {
         echo json_encode([
             'success' => true,
             'id'      => $id,
-            'message' => "Doctor '$nombre' creado correctamente.",
+            'message' => "Doctor '{$normalizado['nombre']}' creado correctamente.",
         ]);
         exit;
     }
@@ -99,16 +97,25 @@ try {
     // Body: { "id": 1, "cedula": "...", "nombre": "...", "especialidad": "..." }
     // ─────────────────────────────────────────────────────────────────────────
     if ($method === 'PUT') {
-        $id           = (int)   ($datos['id']           ?? 0);
-        $cedula       = trim($datos['cedula']       ?? '');
-        $nombre       = trim($datos['nombre']       ?? '');
-        $especialidad = trim($datos['especialidad'] ?? '');
+        $id           = (int) ($datos['id'] ?? 0);
+        $cedula       = $datos['cedula']       ?? '';
+        $nombre       = $datos['nombre']       ?? '';
+        $especialidad = $datos['especialidad'] ?? '';
 
-        if ($id <= 0 || empty($cedula) || empty($nombre)) {
+        if ($id <= 0) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'ID, cédula y nombre son requeridos.']);
+            echo json_encode(['success' => false, 'message' => 'El ID del doctor es requerido.']);
             exit;
         }
+
+        $errorValidacion = validarDatosDoctor($cedula, $nombre, $especialidad);
+        if ($errorValidacion !== null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $errorValidacion]);
+            exit;
+        }
+
+        $normalizado = normalizarDatosDoctor($cedula, $nombre, $especialidad);
 
         $stmt = $pdo->prepare(
             "UPDATE doctores
@@ -116,9 +123,9 @@ try {
              WHERE id = :id"
         );
         $stmt->execute([
-            ':cedula'       => $cedula,
-            ':nombre'       => $nombre,
-            ':especialidad' => $especialidad,
+            ':cedula'       => $normalizado['cedula'],
+            ':nombre'       => $normalizado['nombre'],
+            ':especialidad' => $normalizado['especialidad'],
             ':id'           => $id,
         ]);
 

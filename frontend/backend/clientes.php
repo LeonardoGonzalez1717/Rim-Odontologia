@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'persona_validacion.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -50,30 +51,27 @@ try {
     }
 
     if ($method === 'POST') {
-        $cedula   = trim($datos['cedula']   ?? '');
-        $nombre   = trim($datos['nombre']   ?? '');
-        $telefono = trim($datos['telefono'] ?? '');
+        $cedula   = $datos['cedula']   ?? '';
+        $nombre   = $datos['nombre']   ?? '';
+        $telefono = $datos['telefono'] ?? '';
 
-        if (empty($cedula)) {
+        $errorValidacion = validarDatosCliente($cedula, $nombre, $telefono);
+        if ($errorValidacion !== null) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'El campo "cedula" es requerido.']);
+            echo json_encode(['success' => false, 'message' => $errorValidacion]);
             exit;
         }
 
-        if (empty($nombre)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'El campo "nombre" es requerido.']);
-            exit;
-        }
+        $normalizado = normalizarDatosCliente($cedula, $nombre, $telefono);
 
         $stmt = $pdo->prepare(
             "INSERT INTO clientes (cedula, nombre, telefono, estado)
              VALUES (:cedula, :nombre, :telefono, 'activo')"
         );
         $stmt->execute([
-            ':cedula'   => $cedula,
-            ':nombre'   => $nombre,
-            ':telefono' => $telefono ?: null,
+            ':cedula'   => $normalizado['cedula'],
+            ':nombre'   => $normalizado['nombre'],
+            ':telefono' => $normalizado['telefono'],
         ]);
         $id = (int) $pdo->lastInsertId();
 
@@ -81,22 +79,31 @@ try {
         echo json_encode([
             'success' => true,
             'id'      => $id,
-            'message' => "Cliente '$nombre' creado correctamente.",
+            'message' => "Cliente '{$normalizado['nombre']}' creado correctamente.",
         ]);
         exit;
     }
 
     if ($method === 'PUT') {
         $id       = (int) ($datos['id'] ?? 0);
-        $cedula   = trim($datos['cedula']   ?? '');
-        $nombre   = trim($datos['nombre']   ?? '');
-        $telefono = trim($datos['telefono'] ?? '');
+        $cedula   = $datos['cedula']   ?? '';
+        $nombre   = $datos['nombre']   ?? '';
+        $telefono = $datos['telefono'] ?? '';
 
-        if ($id <= 0 || empty($cedula) || empty($nombre)) {
+        if ($id <= 0) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'ID, cédula y nombre son requeridos.']);
+            echo json_encode(['success' => false, 'message' => 'El ID del cliente es requerido.']);
             exit;
         }
+
+        $errorValidacion = validarDatosCliente($cedula, $nombre, $telefono);
+        if ($errorValidacion !== null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $errorValidacion]);
+            exit;
+        }
+
+        $normalizado = normalizarDatosCliente($cedula, $nombre, $telefono);
 
         $stmt = $pdo->prepare(
             "UPDATE clientes
@@ -104,9 +111,9 @@ try {
              WHERE id = :id"
         );
         $stmt->execute([
-            ':cedula'   => $cedula,
-            ':nombre'   => $nombre,
-            ':telefono' => $telefono ?: null,
+            ':cedula'   => $normalizado['cedula'],
+            ':nombre'   => $normalizado['nombre'],
+            ':telefono' => $normalizado['telefono'],
             ':id'       => $id,
         ]);
 
