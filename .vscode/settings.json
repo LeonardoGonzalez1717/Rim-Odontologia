@@ -1,0 +1,7 @@
+{
+  "git.autorefresh": true,
+  "git.enableStatusBarSync": true,
+  "git.untrackedChanges": "mixed",
+  "git.useEditorAsCommitInput": true,
+  "git.confirmSync": false
+}
