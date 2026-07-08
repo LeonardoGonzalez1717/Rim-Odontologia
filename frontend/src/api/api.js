@@ -6,8 +6,8 @@
 // =============================================================================
 
 const API_BASE = import.meta.env.DEV
-  ? '/api'
-  : '/Rim-Odontologia/frontend/backend';
+  ? '/api' // Usa el alias del proxy en desarrollo local
+  : 'https://rimconsultorio.freedev.app/backend'; // Usa la URL real en producción
 
 /**
  * Helper interno: realiza un fetch y lanza un error si la respuesta no es OK.
