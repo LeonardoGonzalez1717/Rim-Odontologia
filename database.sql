@@ -47,9 +47,10 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `doctor_id`    INT(11)        NOT NULL,
   `fecha_venta`  TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `total`        DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-  `cashea`       TINYINT(1)     NOT NULL DEFAULT 0,
-  `monto_caja`   DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-  `estado`       ENUM('completada','cancelada') NOT NULL DEFAULT 'completada',
+  `cashea`             TINYINT(1)     NOT NULL DEFAULT 0,
+  `monto_caja`         DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `descripcion_cashea` VARCHAR(500)   NULL DEFAULT NULL,
+  `estado`             ENUM('completada','cancelada') NOT NULL DEFAULT 'completada',
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_venta_doctor`
     FOREIGN KEY (`doctor_id`) REFERENCES `doctores`(`id`) ON UPDATE CASCADE

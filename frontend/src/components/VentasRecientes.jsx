@@ -7,8 +7,9 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
+import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
 import { fmt as formatCurrency } from '../utils/reportesPrint'
@@ -33,9 +34,11 @@ const VentasRecientes = ({
 }) => {
   // ID de la venta para la cual se muestra el diálogo de confirmación
   const [confirmandoId, setConfirmandoId] = useState(null)
+  const [detalleId, setDetalleId] = useState(null)
 
   // La venta que se está por confirmar (para el diálogo)
   const ventaAConfirmar = ventas.find((v) => v.id === confirmandoId)
+  const ventaDetalle = ventas.find((v) => v.id === detalleId)
 
   /**
    * El usuario presiona el botón "Cancelar Venta" → mostrar diálogo
@@ -53,6 +56,14 @@ const VentasRecientes = ({
 
   return (
     <>
+      {detalleId && ventaDetalle && (
+        <DetalleVentaModal
+          venta={ventaDetalle}
+          onClose={() => setDetalleId(null)}
+          mostrarFecha={mostrarFecha}
+        />
+      )}
+
       {confirmandoId && ventaAConfirmar && (
         <ConfirmPinModal
           titulo="¿Cancelar esta venta?"
@@ -117,6 +128,9 @@ const VentasRecientes = ({
                   </th>
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Estado
+                  </th>
+                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Detalle
                   </th>
                   {!soloLectura && (
                     <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
@@ -220,6 +234,21 @@ const VentasRecientes = ({
                             <CheckCircle2 size={11} /> Completada
                           </span>
                         )}
+                      </td>
+
+                      {/* Ver detalle */}
+                      <td className="py-3.5 pr-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setDetalleId(venta.id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold
+                                     text-pink-600 hover:text-pink-700 hover:bg-pink-50
+                                     px-2.5 py-1.5 rounded-lg transition-colors"
+                          title="Ver detalle de la venta"
+                        >
+                          <Eye size={13} />
+                          Ver
+                        </button>
                       </td>
 
                       {/* Acción: cancelar venta */}

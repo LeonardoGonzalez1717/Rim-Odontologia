@@ -8,7 +8,8 @@ import {
 } from 'lucide-react'
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
-import { getDatos, getClientes } from '../api/api'
+import VentasAsistente from '../components/VentasAsistente'
+import { getDatos, getClientes, getVentas } from '../api/api'
 import { useAuth } from '../context/AuthContext'
 import Logo from '../components/Logo'
 import { hoyISO, formatearDMA } from '../utils/fechas'
@@ -275,6 +276,20 @@ const AsistenteVenta = () => {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
   const [toast, setToast] = useState(null)
+  const [ventasHoy, setVentasHoy] = useState([])
+  const [loadingVentas, setLoadingVentas] = useState(true)
+
+  const cargarVentasHoy = useCallback(async () => {
+    setLoadingVentas(true)
+    try {
+      const res = await getVentas({ fecha: hoyISO(), por_pagina: 50 })
+      setVentasHoy(res.ventas ?? [])
+    } catch (err) {
+      console.error('Error al cargar ventas:', err)
+    } finally {
+      setLoadingVentas(false)
+    }
+  }, [])
 
   const cargarDatos = useCallback(async () => {
     setLoading(true)
@@ -292,11 +307,13 @@ const AsistenteVenta = () => {
 
   useEffect(() => {
     cargarDatos()
-  }, [cargarDatos])
+    cargarVentasHoy()
+  }, [cargarDatos, cargarVentasHoy])
 
   const handleVentaGuardada = () => {
     setModalAbierto(false)
     setToast({ mensaje: '¡Venta registrada exitosamente!' })
+    cargarVentasHoy()
   }
 
   const handleClienteGuardado = async () => {
@@ -401,6 +418,8 @@ const AsistenteVenta = () => {
                 onClick={() => setVista('tratamientos')}
               />
             </div>
+
+            <VentasAsistente ventas={ventasHoy} loading={loadingVentas} />
           </>
         )}
 

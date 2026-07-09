@@ -52,6 +52,7 @@ const RegistrarVentaModal = ({
   const [cashea, setCashea] = useState(false)
   const [montoCashea, setMontoCashea] = useState('')
   const [montoCasheaEditado, setMontoCasheaEditado] = useState(false)
+  const [descripcionCashea, setDescripcionCashea] = useState('')
 
   const primerCampoRef = useRef(null)
 
@@ -136,6 +137,12 @@ const RegistrarVentaModal = ({
       if (monto > total) {
         return 'El monto inicial no puede ser mayor al total de la venta.'
       }
+      if (!descripcionCashea.trim()) {
+        return 'Indica una descripción para la venta con Cashea.'
+      }
+      if (descripcionCashea.trim().length > 500) {
+        return 'La descripción no puede superar 500 caracteres.'
+      }
     }
     return ''
   }
@@ -162,6 +169,7 @@ const RegistrarVentaModal = ({
         total,
         cashea,
         monto_caja: montoCaja,
+        descripcion_cashea: cashea ? descripcionCashea.trim() : null,
         servicios: lineas.map((l) => ({
           servicio_id: l.servicio_id,
           precio: l.precio,
@@ -177,6 +185,7 @@ const RegistrarVentaModal = ({
         setCashea(false)
         setMontoCashea('')
         setMontoCasheaEditado(false)
+        setDescripcionCashea('')
         onVentaGuardada()
       }, 1200)
     } catch (err) {
@@ -405,6 +414,7 @@ const RegistrarVentaModal = ({
                   } else {
                     setMontoCashea('')
                     setMontoCasheaEditado(false)
+                    setDescripcionCashea('')
                   }
                 }}
                 className="mt-1 w-4 h-4 rounded border-slate-300 text-pink-600
@@ -456,6 +466,26 @@ const RegistrarVentaModal = ({
                     Ingresa a caja hoy: ${montoCaja.toFixed(2)}
                   </p>
                 )}
+                <div>
+                  <label htmlFor="descripcion_cashea" className="form-label">
+                    Descripción
+                  </label>
+                  <textarea
+                    id="descripcion_cashea"
+                    value={descripcionCashea}
+                    onChange={(e) => {
+                      setError('')
+                      setDescripcionCashea(e.target.value)
+                    }}
+                    placeholder="Ej: Plan de cuotas acordado, referencia del financiamiento…"
+                    rows={3}
+                    maxLength={500}
+                    className="form-input resize-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    {descripcionCashea.length}/500 caracteres
+                  </p>
+                </div>
               </div>
             )}
           </div>
