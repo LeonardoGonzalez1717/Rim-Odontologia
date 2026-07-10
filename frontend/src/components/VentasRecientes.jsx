@@ -7,12 +7,12 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye, ExternalLink } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
-import { fmt as formatCurrency } from '../utils/reportesPrint'
+import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
 
 // -----------------------------------------------------------------------------
 // VentasRecientes — Componente principal
@@ -132,6 +132,9 @@ const VentasRecientes = ({
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Detalle
                   </th>
+                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Nota
+                  </th>
                   {!soloLectura && (
                     <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                       Acción
@@ -249,6 +252,26 @@ const VentasRecientes = ({
                           <Eye size={13} />
                           Ver
                         </button>
+                      </td>
+
+                      {/* Generar nota de entrega */}
+                      <td className="py-3.5 pr-4 text-center">
+                        {!esCancelada ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirNotaEntrega(venta)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold
+                                       text-pink-600 bg-pink-50 hover:bg-pink-100
+                                       border border-pink-200 px-3 py-1.5 rounded-lg
+                                       transition-all duration-200"
+                            title="Generar nota de entrega"
+                          >
+                            <ExternalLink size={12} />
+                            Generar Nota
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Acción: cancelar venta */}

@@ -159,7 +159,7 @@ const Dashboard = ({
       {/* ── Fila 2: Ventas por Doctor + Ventas Recientes + Cuotas Cashea ── */}
       <div className="grid grid-cols-1 gap-5">
         <div>
-          <VentasPorDoctor datos={datos.ventas_por_doctor ?? []} />
+          <VentasPorDoctor datos={datos.ventas_por_doctor ?? []} fecha={fechaVentas} />
         </div>
 
         <div>

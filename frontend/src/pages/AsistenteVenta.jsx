@@ -8,8 +8,8 @@ import {
 } from 'lucide-react'
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
-import VentasAsistente from '../components/VentasAsistente'
-import { getDatos, getClientes, getVentas } from '../api/api'
+import NotaEntregaModal from '../components/NotaEntregaModal'
+import { getDatos, getClientes } from '../api/api'
 import { useAuth } from '../context/AuthContext'
 import Logo from '../components/Logo'
 import { hoyISO, formatearDMA } from '../utils/fechas'
@@ -276,20 +276,7 @@ const AsistenteVenta = () => {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
   const [toast, setToast] = useState(null)
-  const [ventasHoy, setVentasHoy] = useState([])
-  const [loadingVentas, setLoadingVentas] = useState(true)
-
-  const cargarVentasHoy = useCallback(async () => {
-    setLoadingVentas(true)
-    try {
-      const res = await getVentas({ fecha: hoyISO(), por_pagina: 50 })
-      setVentasHoy(res.ventas ?? [])
-    } catch (err) {
-      console.error('Error al cargar ventas:', err)
-    } finally {
-      setLoadingVentas(false)
-    }
-  }, [])
+  const [ventaParaNota, setVentaParaNota] = useState(null)
 
   const cargarDatos = useCallback(async () => {
     setLoading(true)
@@ -307,13 +294,11 @@ const AsistenteVenta = () => {
 
   useEffect(() => {
     cargarDatos()
-    cargarVentasHoy()
-  }, [cargarDatos, cargarVentasHoy])
+  }, [cargarDatos])
 
-  const handleVentaGuardada = () => {
+  const handleVentaGuardada = (venta) => {
     setModalAbierto(false)
-    setToast({ mensaje: '¡Venta registrada exitosamente!' })
-    cargarVentasHoy()
+    setVentaParaNota(venta)
   }
 
   const handleClienteGuardado = async () => {
@@ -418,8 +403,6 @@ const AsistenteVenta = () => {
                 onClick={() => setVista('tratamientos')}
               />
             </div>
-
-            <VentasAsistente ventas={ventasHoy} loading={loadingVentas} />
           </>
         )}
 
@@ -455,6 +438,13 @@ const AsistenteVenta = () => {
         <ClienteModal
           onClose={() => setModalClienteAbierto(false)}
           onGuardado={handleClienteGuardado}
+        />
+      )}
+
+      {ventaParaNota && (
+        <NotaEntregaModal
+          venta={ventaParaNota}
+          onClose={() => setVentaParaNota(null)}
         />
       )}
 
