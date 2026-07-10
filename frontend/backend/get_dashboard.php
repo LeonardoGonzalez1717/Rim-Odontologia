@@ -128,6 +128,7 @@ try {
             v.total,
             COALESCE(v.cashea, 0) AS cashea,
             COALESCE(v.monto_caja, v.total) AS monto_caja,
+            v.descripcion_cashea,
             v.estado
          FROM ventas v
          INNER JOIN doctores d ON v.doctor_id = d.id
@@ -145,9 +146,10 @@ try {
             'doctor'  => $row['doctor'],
             'cliente' => $row['cliente'],
             'total'      => (float) $row['total'],
-            'cashea'     => (bool)  $row['cashea'],
-            'monto_caja' => (float) $row['monto_caja'],
-            'estado'     => $row['estado'],
+            'cashea'             => (bool)  $row['cashea'],
+            'monto_caja'         => (float) $row['monto_caja'],
+            'descripcion_cashea' => $row['descripcion_cashea'],
+            'estado'             => $row['estado'],
         ];
     }, $stmtRecientes->fetchAll());
 

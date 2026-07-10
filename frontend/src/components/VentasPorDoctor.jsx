@@ -1,8 +1,10 @@
 // =============================================================================
 // components/VentasPorDoctor.jsx
 // =============================================================================
-import React from 'react'
+import React, { useState } from 'react'
 import { UserCheck, Stethoscope } from 'lucide-react'
+import VentasDoctorModal from './VentasDoctorModal'
+import { esHoy, formatearFechaCorta } from '../utils/fechas'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(value)
@@ -16,8 +18,12 @@ const avatarColors = [
   'bg-rose-400',
 ]
 
-const VentasPorDoctor = ({ datos = [] }) => {
+const VentasPorDoctor = ({ datos = [], fecha }) => {
+  const [doctorSeleccionado, setDoctorSeleccionado] = useState(null)
   const totalGlobal = datos.reduce((sum, d) => sum + d.total, 0)
+  const etiquetaFecha = fecha
+    ? (esHoy(fecha) ? 'Hoy' : formatearFechaCorta(fecha))
+    : 'Hoy'
 
   if (datos.length === 0) {
     return (
@@ -35,17 +41,26 @@ const VentasPorDoctor = ({ datos = [] }) => {
   }
 
   return (
-    <div className="card animate-slide-up">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <Stethoscope size={18} className="text-pink-600" />
-          <h2 className="font-bold text-slate-700 text-base">Ventas por Doctor</h2>
-        </div>
-        <span className="text-xs text-slate-400 font-medium">Hoy</span>
-      </div>
+    <>
+      {doctorSeleccionado && fecha && (
+        <VentasDoctorModal
+          doctor={doctorSeleccionado}
+          fecha={fecha}
+          onClose={() => setDoctorSeleccionado(null)}
+        />
+      )}
 
-      <div className="space-y-4">
-        {datos.map((item, index) => {
+      <div className="card animate-slide-up">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Stethoscope size={18} className="text-pink-600" />
+            <h2 className="font-bold text-slate-700 text-base">Ventas por Doctor</h2>
+          </div>
+          <span className="text-xs text-slate-400 font-medium">{etiquetaFecha}</span>
+        </div>
+
+        <div className="space-y-4">
+          {datos.map((item, index) => {
           const porcentaje = totalGlobal > 0
             ? Math.round((item.total / totalGlobal) * 100)
             : 0
@@ -60,8 +75,16 @@ const VentasPorDoctor = ({ datos = [] }) => {
 
           const avatarColor = avatarColors[index % avatarColors.length]
 
-          return (
-            <div key={item.doctor} className="flex items-center gap-3">
+            return (
+              <button
+                key={item.doctor}
+                type="button"
+                onClick={() => setDoctorSeleccionado(item)}
+                className="w-full flex items-center gap-3 text-left rounded-xl p-2 -mx-2
+                           hover:bg-slate-50 transition-colors cursor-pointer
+                           focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+                title={`Ver ventas de ${item.doctor}`}
+              >
               <div className={`w-9 h-9 rounded-full ${avatarColor} flex-shrink-0
                               flex items-center justify-center text-white text-xs font-bold`}>
                 {iniciales}
@@ -86,13 +109,15 @@ const VentasPorDoctor = ({ datos = [] }) => {
 
                 <p className="text-xs text-slate-400 mt-1">
                   {item.cantidad} {item.cantidad === 1 ? 'tratamiento' : 'tratamientos'} · {porcentaje}%
+                  <span className="text-pink-500 ml-1">· Ver detalle</span>
                 </p>
               </div>
-            </div>
-          )
-        })}
+              </button>
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

@@ -9,6 +9,69 @@ const API_BASE = import.meta.env.DEV
   ? '/api' // Usa el alias del proxy en desarrollo local
   : 'https://rimconsultorio.freedev.app/backend'; // Usa la URL real en producción
 
+/** Mensaje según código HTTP cuando el backend no envía detalle */
+const mensajePorStatus = (status) => {
+  switch (status) {
+    case 400:
+      return 'La solicitud no es válida. Revisa los datos enviados.'
+    case 401:
+      return 'No autorizado. Verifica tu usuario y contraseña.'
+    case 403:
+      return 'No tienes permiso para realizar esta acción.'
+    case 404:
+      return 'No se encontró el endpoint. Verifica que la ruta del backend sea correcta.'
+    case 405:
+      return 'Método no permitido para esta operación.'
+    case 408:
+    case 504:
+      return 'El servidor tardó demasiado en responder. Intenta de nuevo.'
+    case 500:
+      return 'Error interno del servidor. Contacta al administrador.'
+    case 502:
+    case 503:
+      return 'El servidor no está disponible en este momento. Intenta más tarde.'
+    default:
+      if (status >= 500) {
+        return `Error del servidor (${status}). Intenta de nuevo más tarde.`
+      }
+      if (status >= 400) {
+        return `Error en la solicitud (${status}). No se pudo completar la operación.`
+      }
+      return `Error HTTP ${status}.`
+  }
+}
+
+/** Mensaje cuando la respuesta no es JSON parseable */
+const mensajeRespuestaNoJson = (response, raw) => {
+  const cuerpo = raw.trim()
+  const preview = cuerpo.slice(0, 120).toLowerCase()
+
+  if (!cuerpo) {
+    return response.ok
+      ? 'El servidor respondió vacío. Verifica que Apache y PHP estén activos.'
+      : `${mensajePorStatus(response.status)} (sin contenido en la respuesta).`
+  }
+
+  if (preview.startsWith('<!doctype') || preview.startsWith('<html')) {
+    return response.status === 404
+      ? 'No se encontró el backend. Verifica que los archivos PHP estén desplegados en el servidor.'
+      : 'El servidor devolvió una página HTML en lugar de JSON. Puede haber un error de PHP o del hosting.'
+  }
+
+  if (
+    preview.includes('fatal error')
+    || preview.includes('parse error')
+    || preview.includes('warning:')
+    || preview.includes('notice:')
+  ) {
+    return 'Error en el servidor PHP. Revisa los logs de Apache o el archivo del endpoint.'
+  }
+
+  return response.ok
+    ? 'El servidor no devolvió JSON válido. Verifica que Apache esté activo y la ruta del backend sea correcta.'
+    : `${mensajePorStatus(response.status)} La respuesta no tiene formato JSON válido.`
+}
+
 /**
  * Helper interno: realiza un fetch y lanza un error si la respuesta no es OK.
  * @param {string} url
@@ -16,29 +79,42 @@ const API_BASE = import.meta.env.DEV
  * @returns {Promise<any>} Datos JSON parseados
  */
 async function apiFetch(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  });
+  let response
 
-  // Parsear el JSON (siempre, incluso en error, el backend devuelve JSON)
-  const raw = await response.text();
-  let data;
   try {
-    data = JSON.parse(raw);
+    response = await fetch(url, {
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+      ...options,
+    })
+  } catch (err) {
+    const esRed = err instanceof TypeError
+      || /failed to fetch|network|load failed/i.test(err.message ?? '')
+
+    if (esRed) {
+      throw new Error(
+        import.meta.env.DEV
+          ? 'No se pudo conectar con el backend local. ¿Está Apache/XAMPP activo y el proxy de Vite configurado?'
+          : 'No se pudo conectar con el servidor. Verifica tu conexión a internet o que el hosting esté en línea.',
+      )
+    }
+
+    throw new Error(err.message || 'Error de red al contactar el servidor.')
+  }
+
+  const raw = await response.text()
+  let data
+
+  try {
+    data = JSON.parse(raw)
   } catch {
-    throw new Error(
-      response.ok
-        ? 'El servidor no devolvió JSON válido. Verifica que Apache esté activo y la ruta del backend sea correcta.'
-        : `Error HTTP ${response.status}: no se pudo conectar con el backend.`,
-    );
+    throw new Error(mensajeRespuestaNoJson(response, raw))
   }
 
   if (!response.ok || !data.success) {
-    throw new Error(data.message || `Error HTTP ${response.status}`);
+    throw new Error(data.message || mensajePorStatus(response.status))
   }
 
-  return data;
+  return data
 }
 
 // -----------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
+import NotaEntregaModal from '../components/NotaEntregaModal'
 import { getDatos, getClientes } from '../api/api'
 import { useAuth } from '../context/AuthContext'
 import Logo from '../components/Logo'
@@ -275,6 +276,7 @@ const AsistenteVenta = () => {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
   const [toast, setToast] = useState(null)
+  const [ventaParaNota, setVentaParaNota] = useState(null)
 
   const cargarDatos = useCallback(async () => {
     setLoading(true)
@@ -294,9 +296,9 @@ const AsistenteVenta = () => {
     cargarDatos()
   }, [cargarDatos])
 
-  const handleVentaGuardada = () => {
+  const handleVentaGuardada = (venta) => {
     setModalAbierto(false)
-    setToast({ mensaje: '¡Venta registrada exitosamente!' })
+    setVentaParaNota(venta)
   }
 
   const handleClienteGuardado = async () => {
@@ -436,6 +438,13 @@ const AsistenteVenta = () => {
         <ClienteModal
           onClose={() => setModalClienteAbierto(false)}
           onGuardado={handleClienteGuardado}
+        />
+      )}
+
+      {ventaParaNota && (
+        <NotaEntregaModal
+          venta={ventaParaNota}
+          onClose={() => setVentaParaNota(null)}
         />
       )}
 

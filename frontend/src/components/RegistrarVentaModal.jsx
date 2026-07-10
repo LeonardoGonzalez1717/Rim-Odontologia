@@ -52,8 +52,10 @@ const RegistrarVentaModal = ({
   const [cashea, setCashea] = useState(false)
   const [montoCashea, setMontoCashea] = useState('')
   const [montoCasheaEditado, setMontoCasheaEditado] = useState(false)
+  const [descripcionCashea, setDescripcionCashea] = useState('')
 
   const primerCampoRef = useRef(null)
+  const casheaSectionRef = useRef(null)
 
   const total = useMemo(
     () => lineas.reduce((sum, l) => sum + l.precio, 0),
@@ -76,6 +78,14 @@ const RegistrarVentaModal = ({
       setMontoCashea(montoSugeridoCashea.toFixed(2))
     }
   }, [cashea, total, montoSugeridoCashea, montoCasheaEditado])
+
+  useEffect(() => {
+    if (!cashea) return
+    const timer = setTimeout(() => {
+      casheaSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [cashea])
 
   useEffect(() => {
     primerCampoRef.current?.focus()
@@ -136,6 +146,12 @@ const RegistrarVentaModal = ({
       if (monto > total) {
         return 'El monto inicial no puede ser mayor al total de la venta.'
       }
+      if (!descripcionCashea.trim()) {
+        return 'Indica una descripción para la venta con Cashea.'
+      }
+      if (descripcionCashea.trim().length > 500) {
+        return 'La descripción no puede superar 500 caracteres.'
+      }
     }
     return ''
   }
@@ -155,18 +171,31 @@ const RegistrarVentaModal = ({
     try {
       const fechaFormateada = form.fecha_venta.replace('T', ' ') + ':00'
 
-      await registrarVenta({
+      const res = await registrarVenta({
         cliente_id: parseInt(form.cliente_id),
         doctor_id: parseInt(form.doctor_id),
         fecha_venta: fechaFormateada,
         total,
         cashea,
         monto_caja: montoCaja,
+        descripcion_cashea: cashea ? descripcionCashea.trim() : null,
         servicios: lineas.map((l) => ({
           servicio_id: l.servicio_id,
           precio: l.precio,
         })),
       })
+
+      const cliente = clientes.find((c) => String(c.id) === form.cliente_id)
+      const doctor = doctores.find((d) => String(d.id) === form.doctor_id)
+      const ventaRegistrada = {
+        id: res.id,
+        cliente: cliente?.nombre,
+        doctor: doctor?.nombre,
+        fecha_venta: fechaFormateada,
+        total,
+        servicios: lineas.map((l) => ({ nombre: l.nombre, precio: l.precio })),
+        estado: 'completada',
+      }
 
       setExito(true)
       setTimeout(() => {
@@ -177,7 +206,8 @@ const RegistrarVentaModal = ({
         setCashea(false)
         setMontoCashea('')
         setMontoCasheaEditado(false)
-        onVentaGuardada()
+        setDescripcionCashea('')
+        onVentaGuardada(ventaRegistrada)
       }, 1200)
     } catch (err) {
       setError(err.message || 'Error al registrar la venta. Inténtalo de nuevo.')
@@ -405,6 +435,7 @@ const RegistrarVentaModal = ({
                   } else {
                     setMontoCashea('')
                     setMontoCasheaEditado(false)
+                    setDescripcionCashea('')
                   }
                 }}
                 className="mt-1 w-4 h-4 rounded border-slate-300 text-pink-600
@@ -422,40 +453,73 @@ const RegistrarVentaModal = ({
             </label>
 
             {cashea && (
-              <div className="pl-7 animate-slide-up space-y-2">
-                <label htmlFor="monto_cashea" className="form-label">
-                  Monto inicial en caja ($)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
-                    $
-                  </span>
-                  <input
-                    id="monto_cashea"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    max={total > 0 ? total : undefined}
-                    value={montoCashea}
+              <div
+                ref={casheaSectionRef}
+                className="ml-7 p-4 bg-amber-50 border border-amber-200 rounded-xl
+                           animate-slide-up space-y-4"
+              >
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+                  Datos del financiamiento Cashea
+                </p>
+
+                <div>
+                  <label htmlFor="descripcion_cashea" className="form-label">
+                    Descripción Cashea
+                    <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
+                  </label>
+                  <textarea
+                    id="descripcion_cashea"
+                    value={descripcionCashea}
                     onChange={(e) => {
                       setError('')
-                      setMontoCasheaEditado(true)
-                      setMontoCashea(e.target.value)
+                      setDescripcionCashea(e.target.value)
                     }}
-                    placeholder="0.00"
-                    className="form-input pl-8"
+                    placeholder="Ej: Plan de cuotas acordado, referencia del financiamiento…"
+                    rows={3}
+                    maxLength={500}
+                    className="form-input resize-none bg-white"
+                    required
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Obligatorio · {descripcionCashea.length}/500 caracteres
+                  </p>
                 </div>
-                {total > 0 && (
-                  <p className="text-xs text-slate-500">
-                    Sugerido (40%): ${montoSugeridoCashea.toFixed(2)} · Total venta: ${total.toFixed(2)}
-                  </p>
-                )}
-                {total > 0 && montoCaja > 0 && (
-                  <p className="text-xs text-pink-600 font-medium">
-                    Ingresa a caja hoy: ${montoCaja.toFixed(2)}
-                  </p>
-                )}
+
+                <div>
+                  <label htmlFor="monto_cashea" className="form-label">
+                    Monto inicial en caja ($)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
+                      $
+                    </span>
+                    <input
+                      id="monto_cashea"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      max={total > 0 ? total : undefined}
+                      value={montoCashea}
+                      onChange={(e) => {
+                        setError('')
+                        setMontoCasheaEditado(true)
+                        setMontoCashea(e.target.value)
+                      }}
+                      placeholder="0.00"
+                      className="form-input pl-8 bg-white"
+                    />
+                  </div>
+                  {total > 0 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Sugerido (40%): ${montoSugeridoCashea.toFixed(2)} · Total venta: ${total.toFixed(2)}
+                    </p>
+                  )}
+                  {total > 0 && montoCaja > 0 && (
+                    <p className="text-xs text-pink-600 font-medium mt-1">
+                      Ingresa a caja hoy: ${montoCaja.toFixed(2)}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>

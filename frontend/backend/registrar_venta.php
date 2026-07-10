@@ -131,6 +131,8 @@ try {
     $cashea = !empty($datos['cashea']);
     $montoCaja = isset($datos['monto_caja']) ? (float) $datos['monto_caja'] : $total;
 
+    $descripcionCashea = null;
+
     if ($cashea) {
         if ($montoCaja <= 0) {
             http_response_code(400);
@@ -142,6 +144,18 @@ try {
             echo json_encode(['success' => false, 'message' => 'El monto inicial no puede ser mayor al total de la venta.']);
             exit;
         }
+
+        $descripcionCashea = trim((string) ($datos['descripcion_cashea'] ?? ''));
+        if ($descripcionCashea === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Indica una descripción para la venta con Cashea.']);
+            exit;
+        }
+        if (mb_strlen($descripcionCashea) > 500) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'La descripción no puede superar 500 caracteres.']);
+            exit;
+        }
     } else {
         $montoCaja = $total;
     }
@@ -150,16 +164,17 @@ try {
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, cliente_id, fecha_venta, total, cashea, monto_caja, estado)
-         VALUES (:doctor_id, :cliente_id, :fecha_venta, :total, :cashea, :monto_caja, 'completada')"
+        "INSERT INTO ventas (doctor_id, cliente_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, estado)
+         VALUES (:doctor_id, :cliente_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, 'completada')"
     );
     $stmtVenta->execute([
-        ':doctor_id'   => $doctor_id,
-        ':cliente_id'  => $cliente_id,
-        ':fecha_venta' => $fecha_venta,
-        ':total'       => $total,
-        ':cashea'      => $cashea ? 1 : 0,
-        ':monto_caja'  => $montoCaja,
+        ':doctor_id'           => $doctor_id,
+        ':cliente_id'          => $cliente_id,
+        ':fecha_venta'         => $fecha_venta,
+        ':total'               => $total,
+        ':cashea'              => $cashea ? 1 : 0,
+        ':monto_caja'          => $montoCaja,
+        ':descripcion_cashea'  => $descripcionCashea,
     ]);
 
     $nuevoId = (int) $pdo->lastInsertId();
