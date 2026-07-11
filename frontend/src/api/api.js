@@ -72,31 +72,62 @@ const mensajeRespuestaNoJson = (response, raw) => {
     : `${mensajePorStatus(response.status)} La respuesta no tiene formato JSON válido.`
 }
 
+const RETRY_MAX = 2
+const RETRY_BASE_MS = 500
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms) })
+
+const esRespuestaHtml = (raw) => {
+  const preview = raw.trim().slice(0, 120).toLowerCase()
+  return preview.startsWith('<!doctype') || preview.startsWith('<html')
+}
+
+/** Errores típicos de hosting gratuito (anti-bot, límites, cold start) */
+const esReintentable = (response, raw, err) => {
+  if (err) {
+    return err instanceof TypeError
+      || /failed to fetch|network|load failed|aborted/i.test(err.message ?? '')
+  }
+  if ([408, 429, 502, 503, 504].includes(response.status)) return true
+  if (!raw.trim()) return true
+  return esRespuestaHtml(raw)
+}
+
+const mensajeErrorRed = () => (
+  import.meta.env.DEV
+    ? 'No se pudo conectar con el backend local. ¿Está Apache/XAMPP activo y el proxy de Vite configurado?'
+    : 'No se pudo conectar con el servidor. Verifica tu conexión a internet o que el hosting esté en línea.'
+)
+
 /**
- * Helper interno: realiza un fetch y lanza un error si la respuesta no es OK.
+ * Helper interno: fetch con reintentos ante HTML del hosting o fallos de red.
  * @param {string} url
  * @param {RequestInit} options
+ * @param {number} intento
  * @returns {Promise<any>} Datos JSON parseados
  */
-async function apiFetch(url, options = {}) {
+async function apiFetch(url, options = {}, intento = 0) {
   let response
 
   try {
     response = await fetch(url, {
       cache: 'no-store',
+      // En producción envía cookies del anti-bot de InfinityFree
+      credentials: import.meta.env.DEV ? 'same-origin' : 'include',
       headers: { 'Content-Type': 'application/json', ...options.headers },
       ...options,
     })
   } catch (err) {
+    if (intento < RETRY_MAX && esReintentable(null, '', err)) {
+      await sleep(RETRY_BASE_MS * (intento + 1))
+      return apiFetch(url, options, intento + 1)
+    }
+
     const esRed = err instanceof TypeError
       || /failed to fetch|network|load failed/i.test(err.message ?? '')
 
     if (esRed) {
-      throw new Error(
-        import.meta.env.DEV
-          ? 'No se pudo conectar con el backend local. ¿Está Apache/XAMPP activo y el proxy de Vite configurado?'
-          : 'No se pudo conectar con el servidor. Verifica tu conexión a internet o que el hosting esté en línea.',
-      )
+      throw new Error(mensajeErrorRed())
     }
 
     throw new Error(err.message || 'Error de red al contactar el servidor.')
@@ -108,6 +139,10 @@ async function apiFetch(url, options = {}) {
   try {
     data = JSON.parse(raw)
   } catch {
+    if (intento < RETRY_MAX && esReintentable(response, raw, null)) {
+      await sleep(RETRY_BASE_MS * (intento + 1))
+      return apiFetch(url, options, intento + 1)
+    }
     throw new Error(mensajeRespuestaNoJson(response, raw))
   }
 
@@ -119,11 +154,20 @@ async function apiFetch(url, options = {}) {
 }
 
 // -----------------------------------------------------------------------------
+// calentarBackend() — GET ligero para pasar el anti-bot antes del primer POST (login)
+// Endpoint: GET /backend/ping.php
+// -----------------------------------------------------------------------------
+export async function calentarBackend() {
+  return apiFetch(`${API_BASE}/ping.php`)
+}
+
+// -----------------------------------------------------------------------------
 // login(credenciales) — Autenticación de usuario
 // Endpoint: POST /api/login.php
 // @param {{ username, password }} credenciales
 // -----------------------------------------------------------------------------
 export async function login(credenciales) {
+  await calentarBackend()
   return apiFetch(`${API_BASE}/login.php`, {
     method: 'POST',
     body: JSON.stringify(credenciales),

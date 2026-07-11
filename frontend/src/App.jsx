@@ -176,6 +176,7 @@ function AdminApp() {
   const [loadingVentas,    setLoadingVentas]    = useState(true)
   const paginaVentasRef = useRef(1)
   const fechaVentasRef = useRef(fechaVentas)
+  const cargaInicialHecha = useRef(false)
   paginaVentasRef.current = paginaVentas
   fechaVentasRef.current = fechaVentas
 
@@ -188,22 +189,6 @@ function AdminApp() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [cancelando,   setCancelando]   = useState(null)
   const [toast,        setToast]        = useState(null)
-
-  // ─────────────────────────────────────────────────────────────────
-  // Cargar datos del dashboard
-  // ─────────────────────────────────────────────────────────────────
-  const cargarDashboard = useCallback(async (fecha = fechaVentasRef.current) => {
-    setLoadingDash(true)
-    setErrorDash('')
-    try {
-      const data = await getDashboard(fecha)
-      setDashboardData(data)
-    } catch (err) {
-      setErrorDash(err.message || 'No se pudo conectar con el servidor.')
-    } finally {
-      setLoadingDash(false)
-    }
-  }, [])
 
   // ─────────────────────────────────────────────────────────────────
   // Cargar ventas por fecha (paginadas)
@@ -230,8 +215,7 @@ function AdminApp() {
   const handleFechaVentasChange = (fecha) => {
     setFechaVentas(fecha)
     setPaginaVentas(1)
-    cargarDashboard(fecha)
-    cargarVentas(1, fecha)
+    cargarDashboardSecuencial(fecha, 1)
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -248,22 +232,51 @@ function AdminApp() {
     }
   }, [])
 
+  // Carga secuencial para no saturar el hosting gratuito (3 peticiones en paralelo)
+  const cargarDashboardSecuencial = useCallback(async (
+    fecha = fechaVentasRef.current,
+    pagina = paginaVentasRef.current,
+  ) => {
+    setLoadingDash(true)
+    setLoadingVentas(true)
+    setErrorDash('')
+    try {
+      const dash = await getDashboard(fecha)
+      setDashboardData(dash)
+
+      const ventasData = await getVentas({ fecha, pagina, por_pagina: VENTAS_POR_PAGINA })
+      setVentas(ventasData.ventas ?? [])
+      setPaginacionVentas(ventasData.paginacion ?? null)
+      setPaginaVentas(ventasData.paginacion?.pagina ?? pagina)
+
+      const form = await getDatos()
+      setDoctores(form.doctores ?? [])
+      setServicios(form.servicios ?? [])
+      setClientes(form.clientes ?? [])
+    } catch (err) {
+      setErrorDash(err.message || 'No se pudo conectar con el servidor.')
+      console.error('Error al cargar dashboard:', err)
+    } finally {
+      setLoadingDash(false)
+      setLoadingVentas(false)
+    }
+  }, [])
+
   // ─────────────────────────────────────────────────────────────────
   // Carga inicial
   // ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    cargarDashboard()
-    cargarVentas(1)
-    cargarFormData()
-  }, [cargarDashboard, cargarFormData, cargarVentas])
+    cargarDashboardSecuencial(fechaVentasRef.current, 1)
+  }, [cargarDashboardSecuencial])
 
-  // Al volver al dashboard, recargar datos frescos
+  // Al volver al dashboard desde otra sección, recargar sin duplicar la carga inicial
   useEffect(() => {
-    if (paginaActual === 'dashboard') {
-      cargarDashboard(fechaVentas)
-      cargarVentas(paginaVentas, fechaVentas)
-      cargarFormData()
+    if (paginaActual !== 'dashboard') return
+    if (!cargaInicialHecha.current) {
+      cargaInicialHecha.current = true
+      return
     }
+    cargarDashboardSecuencial(fechaVentas, paginaVentas)
   }, [paginaActual]) // eslint-disable-line
 
   // ─────────────────────────────────────────────────────────────────
@@ -274,8 +287,7 @@ function AdminApp() {
     try {
       const res = await cancelarVenta(id)
       setToast({ mensaje: res.message || 'Venta cancelada.', tipo: 'success' })
-      await cargarDashboard()
-      await cargarVentas(paginaVentas, fechaVentas)
+      await cargarDashboardSecuencial(fechaVentas, paginaVentas)
     } catch (err) {
       setToast({ mensaje: err.message || 'Error al cancelar la venta.', tipo: 'error' })
     } finally {
@@ -289,9 +301,8 @@ function AdminApp() {
   const handleVentaGuardada = () => {
     setModalAbierto(false)
     setToast({ mensaje: '¡Venta registrada exitosamente!', tipo: 'success' })
-    cargarDashboard(fechaVentas)
     setPaginaVentas(1)
-    cargarVentas(1, fechaVentas)
+    cargarDashboardSecuencial(fechaVentas, 1)
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -414,7 +425,7 @@ function AdminApp() {
                   <div>
                     <p className="font-semibold text-sm">Error al conectar con el servidor</p>
                     <p className="text-sm opacity-80 mt-0.5">{errorDash}</p>
-                    <button onClick={cargarDashboard}
+                    <button onClick={() => cargarDashboardSecuencial(fechaVentas, paginaVentas)}
                       className="mt-2 text-sm text-red-600 underline hover:no-underline font-medium">
                       Reintentar
                     </button>

@@ -1,9 +1,10 @@
 // =============================================================================
 // pages/Login.jsx — Pantalla de inicio de sesión
 // =============================================================================
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { LogIn, Loader2, AlertCircle, User, Lock, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { calentarBackend } from '../api/api'
 import Logo from '../components/Logo'
 
 const Login = () => {
@@ -11,6 +12,17 @@ const Login = () => {
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [backendListo, setBackendListo] = useState(import.meta.env.DEV)
+
+  // Al abrir login, calentar el backend (InfinityFree anti-bot) antes del POST
+  useEffect(() => {
+    if (import.meta.env.DEV) return
+    let cancelado = false
+    calentarBackend()
+      .then(() => { if (!cancelado) setBackendListo(true) })
+      .catch(() => { if (!cancelado) setBackendListo(true) })
+    return () => { cancelado = true }
+  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -115,13 +127,13 @@ const Login = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !backendListo}
             className="btn-primary w-full flex items-center justify-center gap-2 py-3"
           >
-            {loading ? (
+            {loading || !backendListo ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Verificando…
+                {!backendListo ? 'Conectando con el servidor…' : 'Verificando…'}
               </>
             ) : (
               <>
