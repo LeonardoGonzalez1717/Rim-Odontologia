@@ -9,6 +9,8 @@ import {
   CheckCircle2, XCircle, ExternalLink, Stethoscope,
 } from 'lucide-react'
 import { getDashboard } from '../api/api'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { abrirNotaEntrega, fmt } from '../utils/reportesPrint'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +49,16 @@ const NotaEntrega = ({ onToast }) => {
       String(v.id).includes(busqueda)
     )
   })
+
+  const {
+    itemsPaginados: ventasPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(ventasFiltradas, 10, [busqueda])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -115,7 +127,7 @@ const NotaEntrega = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {ventasFiltradas.map((venta) => (
+                {ventasPagina.map((venta) => (
                   <tr key={venta.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${venta.estado === 'cancelada' ? 'opacity-60' : ''}`}>
@@ -174,6 +186,18 @@ const NotaEntrega = ({ onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="venta"
+                etiquetaPlural="ventas"
+              />
+            </div>
           </div>
         )}
       </div>

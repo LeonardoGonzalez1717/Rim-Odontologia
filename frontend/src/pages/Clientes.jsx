@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
 import ClienteModal from '../components/ClienteModal'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import {
   getClientes, toggleCliente,
 } from '../api/api'
@@ -27,6 +29,16 @@ const Clientes = ({ onToast }) => {
     c.cedula?.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.telefono?.toLowerCase().includes(busqueda.toLowerCase())
   )
+
+  const {
+    itemsPaginados: clientesPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(clientesFiltrados, 10, [busqueda])
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -150,12 +162,12 @@ const Clientes = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {clientesFiltrados.map((cli, index) => (
+                {clientesPagina.map((cli, index) => (
                   <tr key={cli.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${cli.estado === 'inactivo' ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-4 text-sm text-slate-400 font-mono">
-                      {index + 1}
+                      {indiceInicio + index}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-600 font-mono">{cli.cedula || '—'}</span>
@@ -227,6 +239,18 @@ const Clientes = ({ onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="cliente"
+                etiquetaPlural="clientes"
+              />
+            </div>
           </div>
         )}
       </div>

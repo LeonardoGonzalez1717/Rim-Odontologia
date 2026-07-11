@@ -15,6 +15,7 @@ import {
 import { registrarVenta } from '../api/api'
 import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
+import ServicioSelect from './ServicioSelect'
 
 const getFechaHoraActual = () => {
   const ahora = new Date()
@@ -336,19 +337,18 @@ const RegistrarVentaModal = ({
               Tratamientos
             </label>
             <div className="flex gap-2">
-              <select
-                id="servicio_add"
-                value={servicioSeleccionado}
-                onChange={(e) => setServicioSeleccionado(e.target.value)}
-                className="form-input flex-1"
-              >
-                <option value="">— Selecciona un tratamiento —</option>
-                {serviciosDisponibles.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre_servicio} — ${parseFloat(s.precio).toFixed(2)}
-                  </option>
-                ))}
-              </select>
+              <div className="flex-1 min-w-0">
+                <ServicioSelect
+                  id="servicio_add"
+                  servicios={serviciosDisponibles}
+                  value={servicioSeleccionado}
+                  onChange={(val) => {
+                    setError('')
+                    setServicioSeleccionado(val)
+                  }}
+                  placeholder="Buscar tratamiento por nombre…"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handleAgregarTratamiento}

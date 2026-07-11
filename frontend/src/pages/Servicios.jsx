@@ -8,6 +8,8 @@ import {
   CheckCircle2, XCircle, Search, X, Save, Stethoscope, DollarSign,
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import {
   getServicios, crearServicio, actualizarServicio, toggleServicio,
 } from '../api/api'
@@ -166,6 +168,16 @@ const Servicios = ({ onToast }) => {
     s.nombre_servicio.toLowerCase().includes(busqueda.toLowerCase())
   )
 
+  const {
+    itemsPaginados: serviciosPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(serviciosFiltrados, 10, [busqueda])
+
   // Conteo de activos
   const activos = servicios.filter((s) => s.estado === 'activo').length
 
@@ -299,11 +311,11 @@ const Servicios = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {serviciosFiltrados.map((svc, index) => (
+                {serviciosPagina.map((svc, index) => (
                   <tr key={svc.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${svc.estado === 'inactivo' ? 'opacity-60' : ''}`}>
-                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{index + 1}</td>
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{indiceInicio + index}</td>
 
                     {/* Nombre */}
                     <td className="px-6 py-4">
@@ -384,6 +396,18 @@ const Servicios = ({ onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="tratamiento"
+                etiquetaPlural="tratamientos"
+              />
+            </div>
           </div>
         )}
       </div>

@@ -3,11 +3,23 @@
 // =============================================================================
 import React from 'react'
 import { CreditCard, Clock } from 'lucide-react'
+import Paginacion from './Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(value ?? 0)
 
 const CuotasCashea = ({ datos = [], total = 0 }) => {
+  const {
+    itemsPaginados: cuotasPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total: totalCuotas,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(datos, 10)
+
   return (
     <div className="card animate-slide-up">
       <div className="flex items-center justify-between mb-5">
@@ -26,27 +38,41 @@ const CuotasCashea = ({ datos = [], total = 0 }) => {
           <p className="text-sm">No hay cuotas Cashea registradas este día.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-slate-100 -mx-6">
-          {datos.map((cuota) => (
-            <li
-              key={cuota.id}
-              className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-slate-50/70 transition-colors"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">
-                  {cuota.concepto}
-                </p>
-                <div className="flex items-center gap-1.5 text-slate-500 mt-0.5">
-                  <Clock size={12} className="flex-shrink-0" />
-                  <span className="text-xs">{cuota.hora}</span>
+        <>
+          <ul className="divide-y divide-slate-100 -mx-6">
+            {cuotasPagina.map((cuota) => (
+              <li
+                key={cuota.id}
+                className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {cuota.concepto}
+                  </p>
+                  <div className="flex items-center gap-1.5 text-slate-500 mt-0.5">
+                    <Clock size={12} className="flex-shrink-0" />
+                    <span className="text-xs">{cuota.hora}</span>
+                  </div>
                 </div>
-              </div>
-              <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
-                {formatCurrency(cuota.monto)}
-              </span>
-            </li>
-          ))}
-        </ul>
+                <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
+                  {formatCurrency(cuota.monto)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <Paginacion
+            pagina={pagina}
+            totalPaginas={totalPaginas}
+            total={totalCuotas}
+            onPaginaChange={setPagina}
+            indiceInicio={indiceInicio}
+            indiceFin={indiceFin}
+            etiquetaSingular="cuota"
+            etiquetaPlural="cuotas"
+            className="mx-0"
+          />
+        </>
       )}
 
       {datos.length > 0 && (

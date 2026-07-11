@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
 import FiltroFechaVentas from '../components/FiltroFechaVentas'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { getAjustesCashea, registrarAjusteCashea } from '../api/api'
 import { hoyISO } from '../utils/fechas'
 import { fmt } from '../utils/reportesPrint'
@@ -46,6 +48,16 @@ const AjusteCashea = ({ onToast }) => {
   }, [fecha])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const {
+    itemsPaginados: ajustesPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(ajustes, 10, [fecha])
 
   const ejecutarRegistro = async () => {
     const valor = parseFloat(monto)
@@ -203,20 +215,34 @@ const AjusteCashea = ({ onToast }) => {
               <p className="text-sm">No hay cuotas registradas este día.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {ajustes.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/70"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{a.concepto}</p>
-                    <p className="text-xs text-slate-500">{a.hora}</p>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">{fmt(a.monto)}</span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="divide-y divide-slate-100">
+                {ajustesPagina.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/70"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{a.concepto}</p>
+                      <p className="text-xs text-slate-500">{a.hora}</p>
+                    </div>
+                    <span className="text-sm font-bold text-slate-800">{fmt(a.monto)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="px-6 pb-4">
+                <Paginacion
+                  pagina={pagina}
+                  totalPaginas={totalPaginas}
+                  total={total}
+                  onPaginaChange={setPagina}
+                  indiceInicio={indiceInicio}
+                  indiceFin={indiceFin}
+                  etiquetaSingular="cuota"
+                  etiquetaPlural="cuotas"
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

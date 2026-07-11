@@ -9,6 +9,8 @@ import {
   DollarSign, Activity, TrendingUp, Users,
 } from 'lucide-react'
 import { getDashboard } from '../api/api'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { abrirReporteDiario, fmt } from '../utils/reportesPrint'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +38,17 @@ const ReporteDiario = ({ onToast }) => {
 
   const ventasCompletadas = (datos?.ventas_recientes ?? []).filter(v => v.estado === 'completada')
   const ventasCanceladas = (datos?.ventas_recientes ?? []).filter(v => v.estado === 'cancelada')
+  const ventasPorDoctor = datos?.ventas_por_doctor ?? []
+
+  const {
+    itemsPaginados: doctoresPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(ventasPorDoctor, 10)
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -115,7 +128,7 @@ const ReporteDiario = ({ onToast }) => {
               </div>
               <div>
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Doctores</p>
-                <p className="text-xl font-bold text-slate-800">{(datos.ventas_por_doctor ?? []).length}</p>
+                <p className="text-xl font-bold text-slate-800">{ventasPorDoctor.length}</p>
               </div>
             </div>
           </div>
@@ -126,42 +139,56 @@ const ReporteDiario = ({ onToast }) => {
               <Users size={16} className="text-pink-600" />
               <h3 className="text-sm font-bold text-slate-700">Ventas por Doctor</h3>
             </div>
-            {(datos.ventas_por_doctor ?? []).length === 0 ? (
+            {(ventasPorDoctor).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <Users size={32} strokeWidth={1.5} className="mb-2 text-slate-300" />
                 <p className="text-sm">Sin datos de ventas por doctor</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      {['Doctor', 'Especialidad', 'Cantidad', 'Total'].map((h) => (
-                        <th key={h}
-                          className="text-left text-xs font-semibold text-slate-400 uppercase
-                                     tracking-wider px-6 py-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {(datos.ventas_por_doctor ?? []).map((d, i) => (
-                      <tr key={i} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-6 py-3 text-sm font-semibold text-slate-800">{d.doctor}</td>
-                        <td className="px-6 py-3 text-sm text-slate-500">{d.especialidad}</td>
-                        <td className="px-6 py-3 text-sm text-slate-600">{d.cantidad}</td>
-                        <td className="px-6 py-3">
-                          <span className="text-sm font-bold text-pink-700 bg-pink-50
-                                           px-2.5 py-1 rounded-lg border border-pink-100">
-                            {fmt(d.total)}
-                          </span>
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                      <tr>
+                        {['Doctor', 'Especialidad', 'Cantidad', 'Total'].map((h) => (
+                          <th key={h}
+                            className="text-left text-xs font-semibold text-slate-400 uppercase
+                                       tracking-wider px-6 py-3">
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {(doctoresPagina).map((d, i) => (
+                        <tr key={indiceInicio + i} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-6 py-3 text-sm font-semibold text-slate-800">{d.doctor}</td>
+                          <td className="px-6 py-3 text-sm text-slate-500">{d.especialidad}</td>
+                          <td className="px-6 py-3 text-sm text-slate-600">{d.cantidad}</td>
+                          <td className="px-6 py-3">
+                            <span className="text-sm font-bold text-pink-700 bg-pink-50
+                                             px-2.5 py-1 rounded-lg border border-pink-100">
+                              {fmt(d.total)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-6 pb-4">
+                  <Paginacion
+                    pagina={pagina}
+                    totalPaginas={totalPaginas}
+                    total={total}
+                    onPaginaChange={setPagina}
+                    indiceInicio={indiceInicio}
+                    indiceFin={indiceFin}
+                    etiquetaSingular="doctor"
+                    etiquetaPlural="doctores"
+                  />
+                </div>
+              </>
             )}
           </div>
 

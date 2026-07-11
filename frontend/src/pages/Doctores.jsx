@@ -8,6 +8,8 @@ import {
   CheckCircle2, XCircle, Search, X, Save, Stethoscope,
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import {
   getDoctores, crearDoctor, actualizarDoctor, toggleDoctor,
 } from '../api/api'
@@ -197,6 +199,16 @@ const Doctores = ({ onToast }) => {
     d.especialidad.toLowerCase().includes(busqueda.toLowerCase())
   )
 
+  const {
+    itemsPaginados: doctoresPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(doctoresFiltrados, 10, [busqueda])
+
   // Cargar doctores
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -327,12 +339,12 @@ const Doctores = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {doctoresFiltrados.map((doc, index) => (
+                {doctoresPagina.map((doc, index) => (
                   <tr key={doc.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                                 ${doc.estado === 'inactivo' ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-4 text-sm text-slate-400 font-mono">
-                      {index + 1}
+                      {indiceInicio + index}
                     </td>
                     {/* Cédula */}
                     <td className="px-6 py-4">
@@ -411,6 +423,18 @@ const Doctores = ({ onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="doctor"
+                etiquetaPlural="doctores"
+              />
+            </div>
           </div>
         )}
       </div>

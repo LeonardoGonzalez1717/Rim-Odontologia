@@ -8,6 +8,8 @@ import {
   Shield, UserCheck, XCircle, Lock, User, KeyRound, Eye, EyeOff,
 } from 'lucide-react'
 import ConfirmPinModal from '../components/ConfirmPinModal'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { useAuth } from '../context/AuthContext'
 import { getUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from '../api/api'
 
@@ -286,6 +288,16 @@ const Usuarios = ({ onToast }) => {
     u.rol.toLowerCase().includes(busqueda.toLowerCase())
   )
 
+  const {
+    itemsPaginados: usuariosPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(usuariosFiltrados, 10, [busqueda])
+
   const cargar = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -455,11 +467,11 @@ const Usuarios = ({ onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {usuariosFiltrados.map((u, index) => (
+                {usuariosPagina.map((u, index) => (
                   <tr key={u.id}
                     className={`transition-colors duration-150 hover:bg-slate-50/70
                       ${esSesionActual(u) ? 'bg-pink-50/40' : ''}`}>
-                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{index + 1}</td>
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{indiceInicio + index}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-800">{u.nombre}</span>
@@ -556,6 +568,18 @@ const Usuarios = ({ onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="perfil"
+                etiquetaPlural="perfiles"
+              />
+            </div>
           </div>
         )}
       </div>
