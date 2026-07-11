@@ -7,6 +7,8 @@ import {
   CheckCircle2, XCircle, User,
 } from 'lucide-react'
 import { getVentas } from '../api/api'
+import Paginacion from './Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { fmt } from '../utils/reportesPrint'
 import { formatearFechaLarga } from '../utils/fechas'
 
@@ -40,10 +42,20 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
     return () => document.removeEventListener('keydown', fn)
   }, [onClose])
 
-  if (!doctor) return null
-
   const completadas = ventas.filter((v) => v.estado === 'completada')
   const totalEnCaja = completadas.reduce((sum, v) => sum + (v.monto_caja ?? v.total), 0)
+
+  const {
+    itemsPaginados: ventasPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(ventas, 10, [ventas.length])
+
+  if (!doctor) return null
 
   return (
     <div
@@ -115,71 +127,83 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
               <p className="text-sm">No hay ventas registradas para este doctor en esta fecha.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-1">
-              <table className="w-full min-w-[520px]">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    {['Hora', 'Cliente', 'Tratamiento', 'Monto', 'Estado'].map((h) => (
-                      <th
-                        key={h}
-                        className="text-left text-xs font-semibold text-slate-400 uppercase
-                                   tracking-wider pb-3 pr-3"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {ventas.map((venta) => {
-                    const esCancelada = venta.estado === 'cancelada'
-                    return (
-                      <tr
-                        key={venta.id}
-                        className={esCancelada ? 'opacity-60' : 'hover:bg-slate-50/70'}
-                      >
-                        <td className="py-3.5 pr-3">
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <Clock size={13} />
-                            <span className="text-sm font-medium">{venta.hora}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 pr-3">
-                          <span className="text-sm text-slate-700">{venta.cliente || '—'}</span>
-                        </td>
-                        <td className="py-3.5 pr-3">
-                          {venta.servicios?.length > 1 ? (
-                            <ul className="text-sm text-slate-600 space-y-0.5">
-                              {venta.servicios.map((s) => (
-                                <li key={s.id}>{s.nombre}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-sm text-slate-600">{venta.servicio}</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 pr-3">
-                          <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                            {fmt(venta.monto_caja ?? venta.total)}
-                          </span>
-                        </td>
-                        <td className="py-3.5">
-                          {esCancelada ? (
-                            <span className="badge badge-cancelada gap-1">
-                              <XCircle size={11} /> Cancelada
+            <>
+              <div className="overflow-x-auto -mx-1">
+                <table className="w-full min-w-[520px]">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      {['Hora', 'Cliente', 'Tratamiento', 'Monto', 'Estado'].map((h) => (
+                        <th
+                          key={h}
+                          className="text-left text-xs font-semibold text-slate-400 uppercase
+                                     tracking-wider pb-3 pr-3"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {ventasPagina.map((venta) => {
+                      const esCancelada = venta.estado === 'cancelada'
+                      return (
+                        <tr
+                          key={venta.id}
+                          className={esCancelada ? 'opacity-60' : 'hover:bg-slate-50/70'}
+                        >
+                          <td className="py-3.5 pr-3">
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                              <Clock size={13} />
+                              <span className="text-sm font-medium">{venta.hora}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 pr-3">
+                            <span className="text-sm text-slate-700">{venta.cliente || '—'}</span>
+                          </td>
+                          <td className="py-3.5 pr-3">
+                            {venta.servicios?.length > 1 ? (
+                              <ul className="text-sm text-slate-600 space-y-0.5">
+                                {venta.servicios.map((s) => (
+                                  <li key={s.id}>{s.nombre}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-sm text-slate-600">{venta.servicio}</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 pr-3">
+                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {fmt(venta.monto_caja ?? venta.total)}
                             </span>
-                          ) : (
-                            <span className="badge badge-completada gap-1">
-                              <CheckCircle2 size={11} /> Completada
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                          <td className="py-3.5">
+                            {esCancelada ? (
+                              <span className="badge badge-cancelada gap-1">
+                                <XCircle size={11} /> Cancelada
+                              </span>
+                            ) : (
+                              <span className="badge badge-completada gap-1">
+                                <CheckCircle2 size={11} /> Completada
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="venta"
+                etiquetaPlural="ventas"
+              />
+            </>
           )}
         </div>
 

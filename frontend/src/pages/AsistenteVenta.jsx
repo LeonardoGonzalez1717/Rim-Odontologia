@@ -9,6 +9,8 @@ import {
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
 import NotaEntregaModal from '../components/NotaEntregaModal'
+import Paginacion from '../components/Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { getDatos, getClientes } from '../api/api'
 import { useAuth } from '../context/AuthContext'
 import Logo from '../components/Logo'
@@ -82,6 +84,16 @@ const VistaClientes = ({ onVolver, onNuevoCliente, onToast }) => {
       c.telefono?.toLowerCase().includes(q)
     )
   })
+
+  const {
+    itemsPaginados: clientesPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(filtrados, 10, [busqueda])
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -163,7 +175,7 @@ const VistaClientes = ({ onVolver, onNuevoCliente, onToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filtrados.map((cli) => (
+                {clientesPagina.map((cli) => (
                   <tr key={cli.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600 font-mono">{cli.cedula || '—'}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-800">{cli.nombre}</td>
@@ -172,6 +184,18 @@ const VistaClientes = ({ onVolver, onNuevoCliente, onToast }) => {
                 ))}
               </tbody>
             </table>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="cliente"
+                etiquetaPlural="clientes"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -185,6 +209,16 @@ const VistaTratamientos = ({ servicios, loading, onVolver }) => {
   const filtrados = servicios.filter((s) =>
     s.nombre_servicio?.toLowerCase().includes(busqueda.toLowerCase()),
   )
+
+  const {
+    itemsPaginados: serviciosPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(filtrados, 10, [busqueda])
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -238,28 +272,42 @@ const VistaTratamientos = ({ servicios, loading, onVolver }) => {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {filtrados.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/70 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-pink-50 text-pink-600
-                                  flex items-center justify-center flex-shrink-0">
-                    <Stethoscope size={16} />
+          <>
+            <ul className="divide-y divide-slate-100">
+              {serviciosPagina.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/70 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-pink-50 text-pink-600
+                                    flex items-center justify-center flex-shrink-0">
+                      <Stethoscope size={16} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-800 truncate">
+                      {s.nombre_servicio}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-slate-800 truncate">
-                    {s.nombre_servicio}
+                  <span className="text-sm font-bold text-slate-800 whitespace-nowrap flex items-center gap-1">
+                    <DollarSign size={14} className="text-pink-500" />
+                    {fmt(parseFloat(s.precio))}
                   </span>
-                </div>
-                <span className="text-sm font-bold text-slate-800 whitespace-nowrap flex items-center gap-1">
-                  <DollarSign size={14} className="text-pink-500" />
-                  {fmt(parseFloat(s.precio))}
-                </span>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+            <div className="px-6 pb-4">
+              <Paginacion
+                pagina={pagina}
+                totalPaginas={totalPaginas}
+                total={total}
+                onPaginaChange={setPagina}
+                indiceInicio={indiceInicio}
+                indiceFin={indiceFin}
+                etiquetaSingular="tratamiento"
+                etiquetaPlural="tratamientos"
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

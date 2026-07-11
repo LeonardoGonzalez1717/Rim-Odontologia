@@ -7,6 +7,11 @@ const Paginacion = ({
   total = 0,
   onPaginaChange,
   loading = false,
+  etiquetaSingular = 'registro',
+  etiquetaPlural = 'registros',
+  indiceInicio,
+  indiceFin,
+  className = '',
 }) => {
   if (totalPaginas <= 1) return null
 
@@ -15,10 +20,15 @@ const Paginacion = ({
     onPaginaChange(nueva)
   }
 
+  const etiqueta = total === 1 ? etiquetaSingular : etiquetaPlural
+  const rango = indiceInicio != null && indiceFin != null
+    ? `Mostrando ${indiceInicio}–${indiceFin} de ${total} · `
+    : ''
+
   return (
-    <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
+    <div className={`flex items-center justify-between pt-4 mt-4 border-t border-slate-100 ${className}`}>
       <p className="text-xs text-slate-400">
-        Página {pagina} de {totalPaginas} · {total} {total === 1 ? 'venta' : 'ventas'}
+        {rango}Página {pagina} de {totalPaginas} · {total} {etiqueta}
       </p>
       <div className="flex items-center gap-1">
         <button

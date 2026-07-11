@@ -83,6 +83,7 @@ async function apiFetch(url, options = {}) {
 
   try {
     response = await fetch(url, {
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json', ...options.headers },
       ...options,
     })

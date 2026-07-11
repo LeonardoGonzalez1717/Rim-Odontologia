@@ -4,6 +4,8 @@
 import React, { useState } from 'react'
 import { UserCheck, Stethoscope } from 'lucide-react'
 import VentasDoctorModal from './VentasDoctorModal'
+import Paginacion from './Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { esHoy, formatearFechaCorta } from '../utils/fechas'
 
 const formatCurrency = (value) =>
@@ -24,6 +26,16 @@ const VentasPorDoctor = ({ datos = [], fecha }) => {
   const etiquetaFecha = fecha
     ? (esHoy(fecha) ? 'Hoy' : formatearFechaCorta(fecha))
     : 'Hoy'
+
+  const {
+    itemsPaginados: doctoresPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(datos, 10)
 
   if (datos.length === 0) {
     return (
@@ -60,7 +72,7 @@ const VentasPorDoctor = ({ datos = [], fecha }) => {
         </div>
 
         <div className="space-y-4">
-          {datos.map((item, index) => {
+          {doctoresPagina.map((item, index) => {
           const porcentaje = totalGlobal > 0
             ? Math.round((item.total / totalGlobal) * 100)
             : 0
@@ -73,7 +85,7 @@ const VentasPorDoctor = ({ datos = [], fecha }) => {
             .join('')
             .toUpperCase()
 
-          const avatarColor = avatarColors[index % avatarColors.length]
+          const avatarColor = avatarColors[(indiceInicio + index - 1) % avatarColors.length]
 
             return (
               <button
@@ -116,6 +128,17 @@ const VentasPorDoctor = ({ datos = [], fecha }) => {
             )
           })}
         </div>
+
+        <Paginacion
+          pagina={pagina}
+          totalPaginas={totalPaginas}
+          total={total}
+          onPaginaChange={setPagina}
+          indiceInicio={indiceInicio}
+          indiceFin={indiceFin}
+          etiquetaSingular="doctor"
+          etiquetaPlural="doctores"
+        />
       </div>
     </>
   )

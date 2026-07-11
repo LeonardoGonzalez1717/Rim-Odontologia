@@ -4,10 +4,22 @@
 // =============================================================================
 import React from 'react'
 import { Receipt, Loader2, ExternalLink } from 'lucide-react'
+import Paginacion from './Paginacion'
+import { usePaginacion } from '../hooks/usePaginacion'
 import { abrirNotaEntrega } from '../utils/reportesPrint'
 
 const VentasAsistente = ({ ventas = [], loading = false }) => {
   const completadas = ventas.filter((v) => v.estado === 'completada')
+
+  const {
+    itemsPaginados: ventasPagina,
+    pagina,
+    setPagina,
+    totalPaginas,
+    total,
+    indiceInicio,
+    indiceFin,
+  } = usePaginacion(completadas, 10)
 
   return (
     <div className="card animate-slide-up mt-8">
@@ -32,53 +44,66 @@ const VentasAsistente = ({ ventas = [], loading = false }) => {
           <p className="text-sm">No hay ventas registradas hoy.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto -mx-6 px-6">
-          <table className="w-full min-w-[400px]">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                  Cliente
-                </th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                  Doctor
-                </th>
-                <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                  Nota de entrega
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {completadas.map((venta) => (
-                <tr key={venta.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3.5 pr-4">
-                    <span className="text-sm font-medium text-slate-700">
-                      {venta.cliente || '—'}
-                    </span>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <span className="text-sm font-semibold text-slate-800">
-                      {venta.doctor}
-                    </span>
-                  </td>
-                  <td className="py-3.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => abrirNotaEntrega(venta)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold
-                                 text-pink-600 bg-pink-50 hover:bg-pink-100
-                                 border border-pink-200 px-3 py-1.5 rounded-lg
-                                 transition-all duration-200"
-                      title="Generar nota de entrega"
-                    >
-                      <ExternalLink size={12} />
-                      Generar Nota
-                    </button>
-                  </td>
+        <>
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full min-w-[400px]">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Cliente
+                  </th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Doctor
+                  </th>
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Nota de entrega
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {ventasPagina.map((venta) => (
+                  <tr key={venta.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 pr-4">
+                      <span className="text-sm font-medium text-slate-700">
+                        {venta.cliente || '—'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <span className="text-sm font-semibold text-slate-800">
+                        {venta.doctor}
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => abrirNotaEntrega(venta)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold
+                                   text-pink-600 bg-pink-50 hover:bg-pink-100
+                                   border border-pink-200 px-3 py-1.5 rounded-lg
+                                   transition-all duration-200"
+                        title="Generar nota de entrega"
+                      >
+                        <ExternalLink size={12} />
+                        Generar Nota
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <Paginacion
+            pagina={pagina}
+            totalPaginas={totalPaginas}
+            total={total}
+            onPaginaChange={setPagina}
+            indiceInicio={indiceInicio}
+            indiceFin={indiceFin}
+            etiquetaSingular="venta"
+            etiquetaPlural="ventas"
+          />
+        </>
       )}
     </div>
   )

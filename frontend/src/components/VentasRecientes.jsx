@@ -308,6 +308,8 @@ const VentasRecientes = ({
             total={paginacion.total}
             onPaginaChange={onPaginaChange}
             loading={loadingPagina}
+            etiquetaSingular="venta"
+            etiquetaPlural="ventas"
           />
         )}
       </div>
