@@ -22,6 +22,7 @@ import AjusteCashea        from './pages/AjusteCashea'
 import Login               from './pages/Login'
 import AsistenteVenta      from './pages/AsistenteVenta'
 import Logo                from './components/Logo'
+import BackendLoader       from './components/BackendLoader'
 import { useAuth }         from './context/AuthContext'
 import {
   getDashboard, getDatos, getVentas, cancelarVenta, iniciarKeepaliveBackend,
@@ -521,9 +522,19 @@ function App() {
   }, [user])
 
   if (!user) return <Login />
-  if (isAsistente) return <AsistenteVenta />
+  if (isAsistente) return (
+    <>
+      <BackendLoader />
+      <AsistenteVenta />
+    </>
+  )
 
-  return <AdminApp />
+  return (
+    <>
+      <BackendLoader />
+      <AdminApp />
+    </>
+  )
 }
 
 export default App

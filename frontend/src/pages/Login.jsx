@@ -6,6 +6,7 @@ import { LogIn, Loader2, AlertCircle, User, Lock, Eye, EyeOff } from 'lucide-rea
 import { useAuth } from '../context/AuthContext'
 import { calentarBackend } from '../api/api'
 import Logo from '../components/Logo'
+import BackendLoader from '../components/BackendLoader'
 
 const Login = () => {
   const { login, loading } = useAuth()
@@ -47,6 +48,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4
                     bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900">
+      <BackendLoader />
       <div className="w-full max-w-md animate-scale-in">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -67,6 +69,11 @@ const Login = () => {
             <p className="text-sm text-slate-500 mt-0.5">
               Accede con tu cuenta de administrador o asistente
             </p>
+            {!backendListo && !import.meta.env.DEV && (
+              <p className="text-xs text-pink-600 mt-2 font-medium">
+                Preparando conexión con el servidor…
+              </p>
+            )}
           </div>
 
           {error && (

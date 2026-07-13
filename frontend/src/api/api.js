@@ -15,6 +15,83 @@ const IFRAME_CHALLENGE_MS = 2000
 
 let warmupEnCurso = null
 
+const DEBOUNCE_CARGA_MS = 400
+let peticionesActivas = 0
+let warmupVisibleActivo = 0
+let debounceTimer = null
+
+const estadoCarga = {
+  visible: false,
+  mensaje: 'Cargando datos…',
+  esWarmup: false,
+}
+
+const listenersCarga = new Set()
+
+function notificarCargaBackend() {
+  const snapshot = { ...estadoCarga }
+  listenersCarga.forEach((fn) => fn(snapshot))
+}
+
+function actualizarOverlayCarga() {
+  const hayCarga = peticionesActivas > 0 || warmupVisibleActivo > 0
+
+  estadoCarga.esWarmup = warmupVisibleActivo > 0
+  estadoCarga.mensaje = warmupVisibleActivo > 0
+    ? 'Conectando con el servidor…'
+    : 'Cargando datos…'
+
+  if (!hayCarga) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+    if (estadoCarga.visible) {
+      estadoCarga.visible = false
+      notificarCargaBackend()
+    }
+    return
+  }
+
+  if (estadoCarga.visible) {
+    notificarCargaBackend()
+    return
+  }
+
+  if (!debounceTimer) {
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      if (peticionesActivas > 0 || warmupVisibleActivo > 0) {
+        estadoCarga.visible = true
+        notificarCargaBackend()
+      }
+    }, DEBOUNCE_CARGA_MS)
+  }
+}
+
+function iniciarWarmupVisible() {
+  warmupVisibleActivo++
+  actualizarOverlayCarga()
+  return () => {
+    warmupVisibleActivo = Math.max(0, warmupVisibleActivo - 1)
+    actualizarOverlayCarga()
+  }
+}
+
+function iniciarPeticionBackend() {
+  peticionesActivas++
+  actualizarOverlayCarga()
+  return () => {
+    peticionesActivas = Math.max(0, peticionesActivas - 1)
+    actualizarOverlayCarga()
+  }
+}
+
+/** Suscripción para el overlay global (BackendLoader) */
+export function suscribirCargaBackend(callback) {
+  listenersCarga.add(callback)
+  callback({ ...estadoCarga })
+  return () => listenersCarga.delete(callback)
+}
+
 /** Mensaje según código HTTP cuando el backend no envía detalle */
 const mensajePorStatus = (status) => {
   switch (status) {
@@ -166,68 +243,79 @@ async function calentarBackendInterno() {
  * @param {number} intento
  * @returns {Promise<any>} Datos JSON parseados
  */
-async function apiFetch(url, options = {}, intento = 0) {
-  let response
+async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
+  const fin = finPeticion ?? iniciarPeticionBackend()
+  const esRaiz = finPeticion === null
 
   try {
-    response = await fetch(url, {
-      cache: 'no-store',
-      // En producción envía cookies del anti-bot de InfinityFree
-      credentials: import.meta.env.DEV ? 'same-origin' : 'include',
-      headers: { 'Content-Type': 'application/json', ...options.headers },
-      ...options,
-    })
-  } catch (err) {
-    if (intento < RETRY_MAX && esReintentable(null, '', err)) {
-      await sleep(RETRY_BASE_MS * (intento + 1))
-      return apiFetch(url, options, intento + 1)
-    }
+    let response
 
-    const esRed = err instanceof TypeError
-      || /failed to fetch|network|load failed/i.test(err.message ?? '')
-
-    if (esRed) {
-      throw new Error(mensajeErrorRed())
-    }
-
-    throw new Error(err.message || 'Error de red al contactar el servidor.')
-  }
-
-  const raw = await response.text()
-  let data
-
-  try {
-    data = JSON.parse(raw)
-  } catch {
-    if (intento < RETRY_MAX && esReintentable(response, raw, null)) {
-      if (esRespuestaHtml(raw) && !import.meta.env.DEV) {
-        await calentarBackend()
-      } else {
+    try {
+      response = await fetch(url, {
+        cache: 'no-store',
+        // En producción envía cookies del anti-bot de InfinityFree
+        credentials: import.meta.env.DEV ? 'same-origin' : 'include',
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
+      })
+    } catch (err) {
+      if (intento < RETRY_MAX && esReintentable(null, '', err)) {
         await sleep(RETRY_BASE_MS * (intento + 1))
+        return apiFetch(url, options, intento + 1, fin)
       }
-      return apiFetch(url, options, intento + 1)
+
+      const esRed = err instanceof TypeError
+        || /failed to fetch|network|load failed/i.test(err.message ?? '')
+
+      if (esRed) {
+        throw new Error(mensajeErrorRed())
+      }
+
+      throw new Error(err.message || 'Error de red al contactar el servidor.')
     }
-    throw new Error(mensajeRespuestaNoJson(response, raw))
-  }
 
-  if (!response.ok || !data.success) {
-    throw new Error(data.message || mensajePorStatus(response.status))
-  }
+    const raw = await response.text()
+    let data
 
-  return data
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      if (intento < RETRY_MAX && esReintentable(response, raw, null)) {
+        if (esRespuestaHtml(raw) && !import.meta.env.DEV) {
+          await calentarBackend()
+        } else {
+          await sleep(RETRY_BASE_MS * (intento + 1))
+        }
+        return apiFetch(url, options, intento + 1, fin)
+      }
+      throw new Error(mensajeRespuestaNoJson(response, raw))
+    }
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || mensajePorStatus(response.status))
+    }
+
+    return data
+  } finally {
+    if (esRaiz) fin()
+  }
 }
 
 // -----------------------------------------------------------------------------
 // calentarBackend() — Pasa el anti-bot de InfinityFree (iframe + verificación)
 // Endpoint: GET /backend/ping.php
 // -----------------------------------------------------------------------------
-export function calentarBackend() {
+export function calentarBackend(opciones = {}) {
+  const { silencioso = false } = opciones
+  const finWarmup = silencioso ? () => {} : iniciarWarmupVisible()
+
   if (!warmupEnCurso) {
     warmupEnCurso = calentarBackendInterno().finally(() => {
       warmupEnCurso = null
     })
   }
-  return warmupEnCurso
+
+  return warmupEnCurso.finally(finWarmup)
 }
 
 // -----------------------------------------------------------------------------
@@ -237,17 +325,17 @@ export function calentarBackend() {
 export function iniciarKeepaliveBackend() {
   if (import.meta.env.DEV) return () => {}
 
-  calentarBackend()
+  calentarBackend({ silencioso: true })
 
   const intervalId = setInterval(() => {
     if (document.visibilityState === 'visible') {
-      calentarBackend()
+      calentarBackend({ silencioso: true })
     }
   }, KEEPALIVE_MS)
 
   const onVisibilidad = () => {
     if (document.visibilityState === 'visible') {
-      calentarBackend()
+      calentarBackend({ silencioso: true })
     }
   }
 
