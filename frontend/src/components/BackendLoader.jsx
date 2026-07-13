@@ -24,14 +24,15 @@ const BackendLoader = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center
-                 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+      className="fixed bottom-6 right-6 z-[200] pointer-events-none animate-fade-in"
       role="status"
       aria-live="polite"
       aria-busy="true"
       aria-label={mensaje}
     >
-      <Loader2 size={48} className="animate-spin text-pink-500" />
+      <div className="bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-lg">
+        <Loader2 size={28} className="animate-spin text-pink-500" />
+      </div>
     </div>
   )
 }
