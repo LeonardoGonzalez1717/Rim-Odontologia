@@ -9,6 +9,12 @@ const API_BASE = import.meta.env.DEV
   ? '/api' // Usa el alias del proxy en desarrollo local
   : 'https://rimconsultorio.freedev.app/backend'; // Usa la URL real en producción
 
+const PING_URL = `${API_BASE}/ping.php`
+const KEEPALIVE_MS = 12 * 60 * 1000
+const IFRAME_CHALLENGE_MS = 2000
+
+let warmupEnCurso = null
+
 /** Mensaje según código HTTP cuando el backend no envía detalle */
 const mensajePorStatus = (status) => {
   switch (status) {
@@ -99,6 +105,60 @@ const mensajeErrorRed = () => (
     : 'No se pudo conectar con el servidor. Verifica tu conexión a internet o que el hosting esté en línea.'
 )
 
+/** Ejecuta el desafío JS del anti-bot (aes.js) vía iframe oculto — fetch solo no basta */
+function ejecutarDesafioAntiBot() {
+  if (import.meta.env.DEV || typeof document === 'undefined') {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.setAttribute('tabindex', '-1')
+    iframe.title = ''
+    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none'
+    iframe.src = `${PING_URL}?_=${Date.now()}`
+
+    const limpiar = () => {
+      clearTimeout(timeoutId)
+      iframe.onload = null
+      iframe.onerror = null
+      iframe.remove()
+      resolve()
+    }
+
+    const timeoutId = setTimeout(limpiar, IFRAME_CHALLENGE_MS)
+    iframe.onload = () => { setTimeout(limpiar, IFRAME_CHALLENGE_MS) }
+    iframe.onerror = limpiar
+
+    document.body.appendChild(iframe)
+  })
+}
+
+async function calentarBackendInterno() {
+  if (import.meta.env.DEV) {
+    try {
+      await fetch(PING_URL, { cache: 'no-store', credentials: 'same-origin' })
+    } catch {
+      // En local el proxy puede no estar activo; no bloquear la app
+    }
+    return
+  }
+
+  await ejecutarDesafioAntiBot()
+
+  try {
+    const res = await fetch(PING_URL, { cache: 'no-store', credentials: 'include' })
+    const raw = await res.text()
+    if (!esRespuestaHtml(raw)) return
+  } catch {
+    // Si falla la verificación, intentar un segundo paso del desafío
+  }
+
+  await sleep(500)
+  await ejecutarDesafioAntiBot()
+}
+
 /**
  * Helper interno: fetch con reintentos ante HTML del hosting o fallos de red.
  * @param {string} url
@@ -140,7 +200,11 @@ async function apiFetch(url, options = {}, intento = 0) {
     data = JSON.parse(raw)
   } catch {
     if (intento < RETRY_MAX && esReintentable(response, raw, null)) {
-      await sleep(RETRY_BASE_MS * (intento + 1))
+      if (esRespuestaHtml(raw) && !import.meta.env.DEV) {
+        await calentarBackend()
+      } else {
+        await sleep(RETRY_BASE_MS * (intento + 1))
+      }
       return apiFetch(url, options, intento + 1)
     }
     throw new Error(mensajeRespuestaNoJson(response, raw))
@@ -154,11 +218,45 @@ async function apiFetch(url, options = {}, intento = 0) {
 }
 
 // -----------------------------------------------------------------------------
-// calentarBackend() — GET ligero para pasar el anti-bot antes del primer POST (login)
+// calentarBackend() — Pasa el anti-bot de InfinityFree (iframe + verificación)
 // Endpoint: GET /backend/ping.php
 // -----------------------------------------------------------------------------
-export async function calentarBackend() {
-  return apiFetch(`${API_BASE}/ping.php`)
+export function calentarBackend() {
+  if (!warmupEnCurso) {
+    warmupEnCurso = calentarBackendInterno().finally(() => {
+      warmupEnCurso = null
+    })
+  }
+  return warmupEnCurso
+}
+
+// -----------------------------------------------------------------------------
+// iniciarKeepaliveBackend() — Renueva la sesión anti-bot mientras la app está abierta
+// Llamar al iniciar sesión; devuelve función de limpieza para useEffect
+// -----------------------------------------------------------------------------
+export function iniciarKeepaliveBackend() {
+  if (import.meta.env.DEV) return () => {}
+
+  calentarBackend()
+
+  const intervalId = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      calentarBackend()
+    }
+  }, KEEPALIVE_MS)
+
+  const onVisibilidad = () => {
+    if (document.visibilityState === 'visible') {
+      calentarBackend()
+    }
+  }
+
+  document.addEventListener('visibilitychange', onVisibilidad)
+
+  return () => {
+    clearInterval(intervalId)
+    document.removeEventListener('visibilitychange', onVisibilidad)
+  }
 }
 
 // -----------------------------------------------------------------------------

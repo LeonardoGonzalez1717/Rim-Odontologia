@@ -23,7 +23,9 @@ import Login               from './pages/Login'
 import AsistenteVenta      from './pages/AsistenteVenta'
 import Logo                from './components/Logo'
 import { useAuth }         from './context/AuthContext'
-import { getDashboard, getDatos, getVentas, cancelarVenta } from './api/api'
+import {
+  getDashboard, getDatos, getVentas, cancelarVenta, iniciarKeepaliveBackend,
+} from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas } from './utils/fechas'
 
 const VENTAS_POR_PAGINA = 10
@@ -511,6 +513,12 @@ function AdminApp() {
 // =============================================================================
 function App() {
   const { user, isAsistente } = useAuth()
+
+  // Renovar cookies anti-bot de InfinityFree mientras hay sesión activa
+  useEffect(() => {
+    if (!user) return undefined
+    return iniciarKeepaliveBackend()
+  }, [user])
 
   if (!user) return <Login />
   if (isAsistente) return <AsistenteVenta />
