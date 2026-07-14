@@ -1,10 +1,9 @@
 // =============================================================================
 // pages/Login.jsx — Pantalla de inicio de sesión
 // =============================================================================
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { LogIn, Loader2, AlertCircle, User, Lock, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { calentarBackend } from '../api/api'
 import Logo from '../components/Logo'
 import BackendLoader from '../components/BackendLoader'
 
@@ -13,17 +12,6 @@ const Login = () => {
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [backendListo, setBackendListo] = useState(import.meta.env.DEV)
-
-  // Al abrir login, calentar el backend (InfinityFree anti-bot) antes del POST
-  useEffect(() => {
-    if (import.meta.env.DEV) return
-    let cancelado = false
-    calentarBackend()
-      .then(() => { if (!cancelado) setBackendListo(true) })
-      .catch(() => { if (!cancelado) setBackendListo(true) })
-    return () => { cancelado = true }
-  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -69,11 +57,6 @@ const Login = () => {
             <p className="text-sm text-slate-500 mt-0.5">
               Accede con tu cuenta de administrador o asistente
             </p>
-            {!backendListo && !import.meta.env.DEV && (
-              <p className="text-xs text-pink-600 mt-2 font-medium">
-                Preparando conexión con el servidor…
-              </p>
-            )}
           </div>
 
           {error && (
@@ -134,13 +117,13 @@ const Login = () => {
 
           <button
             type="submit"
-            disabled={loading || !backendListo}
+            disabled={loading}
             className="btn-primary w-full flex items-center justify-center gap-2 py-3"
           >
-            {loading || !backendListo ? (
+            {loading ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                {!backendListo ? 'Conectando con el servidor…' : 'Verificando…'}
+                Verificando…
               </>
             ) : (
               <>

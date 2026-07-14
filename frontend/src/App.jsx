@@ -25,7 +25,7 @@ import Logo                from './components/Logo'
 import BackendLoader       from './components/BackendLoader'
 import { useAuth }         from './context/AuthContext'
 import {
-  getDashboard, getDatos, getVentas, cancelarVenta, iniciarKeepaliveBackend,
+  getDashboard, getDatos, getVentas, cancelarVenta,
 } from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas } from './utils/fechas'
 
@@ -515,11 +515,6 @@ function AdminApp() {
 function App() {
   const { user, isAsistente } = useAuth()
 
-  // Renovar cookies anti-bot de InfinityFree mientras hay sesión activa
-  useEffect(() => {
-    if (!user) return undefined
-    return iniciarKeepaliveBackend()
-  }, [user])
 
   if (!user) return <Login />
   if (isAsistente) return (

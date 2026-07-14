@@ -6,26 +6,15 @@
 // =============================================================================
 
 const API_BASE = import.meta.env.DEV
-  ? '/api' // Usa el alias del proxy en desarrollo local
-  : 'https://rimconsultorio.freedev.app/backend'; // Usa la URL real en producción
+  ? '/api'
+  : 'https://rimconsultorio.freedev.app/backend'
 
-const PING_URL = `${API_BASE}/ping.php`
-const KEEPALIVE_MS = 12 * 60 * 1000
-const IFRAME_CHALLENGE_MS = 2000
-
-let warmupEnCurso = null
-
+// ─── Overlay de carga global ──────────────────────────────────────────────────
 const DEBOUNCE_CARGA_MS = 400
 let peticionesActivas = 0
-let warmupVisibleActivo = 0
 let debounceTimer = null
 
-const estadoCarga = {
-  visible: false,
-  mensaje: 'Cargando datos…',
-  esWarmup: false,
-}
-
+const estadoCarga = { visible: false, mensaje: 'Cargando datos…' }
 const listenersCarga = new Set()
 
 function notificarCargaBackend() {
@@ -34,13 +23,7 @@ function notificarCargaBackend() {
 }
 
 function actualizarOverlayCarga() {
-  const hayCarga = peticionesActivas > 0 || warmupVisibleActivo > 0
-
-  estadoCarga.esWarmup = warmupVisibleActivo > 0
-  estadoCarga.mensaje = warmupVisibleActivo > 0
-    ? 'Conectando con el servidor…'
-    : 'Cargando datos…'
-
+  const hayCarga = peticionesActivas > 0
   if (!hayCarga) {
     clearTimeout(debounceTimer)
     debounceTimer = null
@@ -50,29 +33,15 @@ function actualizarOverlayCarga() {
     }
     return
   }
-
-  if (estadoCarga.visible) {
-    notificarCargaBackend()
-    return
-  }
-
+  if (estadoCarga.visible) { notificarCargaBackend(); return }
   if (!debounceTimer) {
     debounceTimer = setTimeout(() => {
       debounceTimer = null
-      if (peticionesActivas > 0 || warmupVisibleActivo > 0) {
+      if (peticionesActivas > 0) {
         estadoCarga.visible = true
         notificarCargaBackend()
       }
     }, DEBOUNCE_CARGA_MS)
-  }
-}
-
-function iniciarWarmupVisible() {
-  warmupVisibleActivo++
-  actualizarOverlayCarga()
-  return () => {
-    warmupVisibleActivo = Math.max(0, warmupVisibleActivo - 1)
-    actualizarOverlayCarga()
   }
 }
 
@@ -85,79 +54,64 @@ function iniciarPeticionBackend() {
   }
 }
 
-/** Suscripción para el overlay global (BackendLoader) */
+/** Suscripción para el spinner global (BackendLoader) */
 export function suscribirCargaBackend(callback) {
   listenersCarga.add(callback)
   callback({ ...estadoCarga })
   return () => listenersCarga.delete(callback)
 }
 
-/** Mensaje según código HTTP cuando el backend no envía detalle */
+// ─── Mensajes de error descriptivos ──────────────────────────────────────────
 const mensajePorStatus = (status) => {
   switch (status) {
-    case 400:
-      return 'La solicitud no es válida. Revisa los datos enviados.'
-    case 401:
-      return 'No autorizado. Verifica tu usuario y contraseña.'
-    case 403:
-      return 'No tienes permiso para realizar esta acción.'
-    case 404:
-      return 'No se encontró el endpoint. Verifica que la ruta del backend sea correcta.'
-    case 405:
-      return 'Método no permitido para esta operación.'
+    case 400: return 'La solicitud no es válida. Revisa los datos enviados.'
+    case 401: return 'No autorizado. Verifica tu usuario y contraseña.'
+    case 403: return 'No tienes permiso para realizar esta acción.'
+    case 404: return 'No se encontró el endpoint. Verifica que los archivos PHP estén en el servidor.'
+    case 405: return 'Método no permitido para esta operación.'
     case 408:
-    case 504:
-      return 'El servidor tardó demasiado en responder. Intenta de nuevo.'
-    case 500:
-      return 'Error interno del servidor. Contacta al administrador.'
+    case 504: return 'El servidor tardó demasiado en responder. Intenta de nuevo.'
+    case 500: return 'Error interno del servidor. Contacta al administrador.'
     case 502:
-    case 503:
-      return 'El servidor no está disponible en este momento. Intenta más tarde.'
+    case 503: return 'El servidor no está disponible en este momento. Intenta más tarde.'
     default:
-      if (status >= 500) {
-        return `Error del servidor (${status}). Intenta de nuevo más tarde.`
-      }
-      if (status >= 400) {
-        return `Error en la solicitud (${status}). No se pudo completar la operación.`
-      }
+      if (status >= 500) return `Error del servidor (${status}). Intenta de nuevo más tarde.`
+      if (status >= 400) return `Error en la solicitud (${status}). No se pudo completar la operación.`
       return `Error HTTP ${status}.`
   }
 }
 
-/** Mensaje cuando la respuesta no es JSON parseable */
 const mensajeRespuestaNoJson = (response, raw) => {
   const cuerpo = raw.trim()
   const preview = cuerpo.slice(0, 120).toLowerCase()
-
   if (!cuerpo) {
     return response.ok
       ? 'El servidor respondió vacío. Verifica que Apache y PHP estén activos.'
       : `${mensajePorStatus(response.status)} (sin contenido en la respuesta).`
   }
-
   if (preview.startsWith('<!doctype') || preview.startsWith('<html')) {
     return response.status === 404
-      ? 'No se encontró el backend. Verifica que los archivos PHP estén desplegados en el servidor.'
-      : 'El servidor devolvió una página HTML en lugar de JSON. Puede haber un error de PHP o del hosting.'
+      ? 'No se encontró el backend. Verifica que los archivos PHP estén desplegados.'
+      : 'El servidor devolvió HTML en lugar de JSON. Puede haber un error de PHP.'
   }
-
-  if (
-    preview.includes('fatal error')
-    || preview.includes('parse error')
-    || preview.includes('warning:')
-    || preview.includes('notice:')
-  ) {
-    return 'Error en el servidor PHP. Revisa los logs de Apache o el archivo del endpoint.'
+  if (preview.includes('fatal error') || preview.includes('parse error')
+    || preview.includes('warning:') || preview.includes('notice:')) {
+    return 'Error en el servidor PHP. Revisa los logs de Apache.'
   }
-
   return response.ok
-    ? 'El servidor no devolvió JSON válido. Verifica que Apache esté activo y la ruta del backend sea correcta.'
+    ? 'El servidor no devolvió JSON válido.'
     : `${mensajePorStatus(response.status)} La respuesta no tiene formato JSON válido.`
 }
 
+const mensajeErrorRed = () => (
+  import.meta.env.DEV
+    ? 'No se pudo conectar con el backend local. ¿Está Apache/XAMPP activo?'
+    : 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+)
+
+// ─── Lógica de reintentos ─────────────────────────────────────────────────────
 const RETRY_MAX = 2
 const RETRY_BASE_MS = 500
-
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms) })
 
 const esRespuestaHtml = (raw) => {
@@ -165,79 +119,15 @@ const esRespuestaHtml = (raw) => {
   return preview.startsWith('<!doctype') || preview.startsWith('<html')
 }
 
-/** Errores típicos de hosting gratuito (anti-bot, límites, cold start) */
 const esReintentable = (response, raw, err) => {
-  if (err) {
-    return err instanceof TypeError
-      || /failed to fetch|network|load failed|aborted/i.test(err.message ?? '')
-  }
-  if ([408, 429, 502, 503, 504].includes(response.status)) return true
+  if (err) return err instanceof TypeError || /failed to fetch|network|load failed|aborted/i.test(err.message ?? '')
+  if ([408, 429, 502, 503, 504].includes(response?.status)) return true
   if (!raw.trim()) return true
   return esRespuestaHtml(raw)
 }
 
-const mensajeErrorRed = () => (
-  import.meta.env.DEV
-    ? 'No se pudo conectar con el backend local. ¿Está Apache/XAMPP activo y el proxy de Vite configurado?'
-    : 'No se pudo conectar con el servidor. Verifica tu conexión a internet o que el hosting esté en línea.'
-)
-
-/** Ejecuta el desafío JS del anti-bot (aes.js) vía iframe oculto — fetch solo no basta */
-function ejecutarDesafioAntiBot() {
-  if (import.meta.env.DEV || typeof document === 'undefined') {
-    return Promise.resolve()
-  }
-
-  return new Promise((resolve) => {
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.setAttribute('tabindex', '-1')
-    iframe.title = ''
-    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none'
-    iframe.src = `${PING_URL}?_=${Date.now()}`
-
-    const limpiar = () => {
-      clearTimeout(timeoutId)
-      iframe.onload = null
-      iframe.onerror = null
-      iframe.remove()
-      resolve()
-    }
-
-    const timeoutId = setTimeout(limpiar, IFRAME_CHALLENGE_MS)
-    iframe.onload = () => { setTimeout(limpiar, IFRAME_CHALLENGE_MS) }
-    iframe.onerror = limpiar
-
-    document.body.appendChild(iframe)
-  })
-}
-
-async function calentarBackendInterno() {
-  if (import.meta.env.DEV) {
-    try {
-      await fetch(PING_URL, { cache: 'no-store', credentials: 'same-origin' })
-    } catch {
-      // En local el proxy puede no estar activo; no bloquear la app
-    }
-    return
-  }
-
-  await ejecutarDesafioAntiBot()
-
-  try {
-    const res = await fetch(PING_URL, { cache: 'no-store', credentials: 'include' })
-    const raw = await res.text()
-    if (!esRespuestaHtml(raw)) return
-  } catch {
-    // Si falla la verificación, intentar un segundo paso del desafío
-  }
-
-  await sleep(500)
-  await ejecutarDesafioAntiBot()
-}
-
 /**
- * Helper interno: fetch con reintentos ante HTML del hosting o fallos de red.
+ * Helper interno: fetch con reintentos ante fallos de red o respuestas inválidas.
  * @param {string} url
  * @param {RequestInit} options
  * @param {number} intento
@@ -249,17 +139,10 @@ async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
 
   try {
     let response
-
     try {
       response = await fetch(url, {
         cache: 'no-store',
-        // En producción envía cookies del anti-bot de InfinityFree
-        credentials: import.meta.env.DEV ? 'same-origin' : 'include',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          ...options.headers 
-        },
+        headers: { 'Content-Type': 'application/json', ...options.headers },
         ...options,
       })
     } catch (err) {
@@ -267,29 +150,17 @@ async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
         await sleep(RETRY_BASE_MS * (intento + 1))
         return apiFetch(url, options, intento + 1, fin)
       }
-
-      const esRed = err instanceof TypeError
-        || /failed to fetch|network|load failed/i.test(err.message ?? '')
-
-      if (esRed) {
-        throw new Error(mensajeErrorRed())
-      }
-
-      throw new Error(err.message || 'Error de red al contactar el servidor.')
+      const esRed = err instanceof TypeError || /failed to fetch|network|load failed/i.test(err.message ?? '')
+      throw new Error(esRed ? mensajeErrorRed() : (err.message || 'Error de red al contactar el servidor.'))
     }
 
     const raw = await response.text()
     let data
-
     try {
       data = JSON.parse(raw)
     } catch {
       if (intento < RETRY_MAX && esReintentable(response, raw, null)) {
-        if (esRespuestaHtml(raw) && !import.meta.env.DEV) {
-          await calentarBackend()
-        } else {
-          await sleep(RETRY_BASE_MS * (intento + 1))
-        }
+        await sleep(RETRY_BASE_MS * (intento + 1))
         return apiFetch(url, options, intento + 1, fin)
       }
       throw new Error(mensajeRespuestaNoJson(response, raw))
@@ -298,56 +169,9 @@ async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
     if (!response.ok || !data.success) {
       throw new Error(data.message || mensajePorStatus(response.status))
     }
-
     return data
   } finally {
     if (esRaiz) fin()
-  }
-}
-
-// -----------------------------------------------------------------------------
-// calentarBackend() — Pasa el anti-bot de InfinityFree (iframe + verificación)
-// Endpoint: GET /backend/ping.php
-// -----------------------------------------------------------------------------
-export function calentarBackend(opciones = {}) {
-  const { silencioso = false } = opciones
-  const finWarmup = silencioso ? () => {} : iniciarWarmupVisible()
-
-  if (!warmupEnCurso) {
-    warmupEnCurso = calentarBackendInterno().finally(() => {
-      warmupEnCurso = null
-    })
-  }
-
-  return warmupEnCurso.finally(finWarmup)
-}
-
-// -----------------------------------------------------------------------------
-// iniciarKeepaliveBackend() — Renueva la sesión anti-bot mientras la app está abierta
-// Llamar al iniciar sesión; devuelve función de limpieza para useEffect
-// -----------------------------------------------------------------------------
-export function iniciarKeepaliveBackend() {
-  if (import.meta.env.DEV) return () => {}
-
-  calentarBackend({ silencioso: true })
-
-  const intervalId = setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      calentarBackend({ silencioso: true })
-    }
-  }, KEEPALIVE_MS)
-
-  const onVisibilidad = () => {
-    if (document.visibilityState === 'visible') {
-      calentarBackend({ silencioso: true })
-    }
-  }
-
-  document.addEventListener('visibilitychange', onVisibilidad)
-
-  return () => {
-    clearInterval(intervalId)
-    document.removeEventListener('visibilitychange', onVisibilidad)
   }
 }
 
@@ -357,11 +181,10 @@ export function iniciarKeepaliveBackend() {
 // @param {{ username, password }} credenciales
 // -----------------------------------------------------------------------------
 export async function login(credenciales) {
-  await calentarBackend()
   return apiFetch(`${API_BASE}/login.php`, {
     method: 'POST',
     body: JSON.stringify(credenciales),
-  });
+  })
 }
 
 // -----------------------------------------------------------------------------
