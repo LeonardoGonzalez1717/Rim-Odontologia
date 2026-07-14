@@ -37,7 +37,7 @@ try {
         exit;
     }
 
-    $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE username = :username LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, username, nombre, rol, password FROM usuarios WHERE username = :username LIMIT 1");
     $stmt->execute([':username' => $username]);
     $user = $stmt->fetch();
 

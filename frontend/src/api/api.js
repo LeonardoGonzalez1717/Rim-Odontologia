@@ -255,7 +255,11 @@ async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
         cache: 'no-store',
         // En producción envía cookies del anti-bot de InfinityFree
         credentials: import.meta.env.DEV ? 'same-origin' : 'include',
-        headers: { 'Content-Type': 'application/json', ...options.headers },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          ...options.headers 
+        },
         ...options,
       })
     } catch (err) {
