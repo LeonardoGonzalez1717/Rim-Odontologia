@@ -7,7 +7,7 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye, ExternalLink } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, ExternalLink } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
@@ -103,7 +103,7 @@ const VentasRecientes = ({
         ) : (
           /* Tabla responsiva con scroll horizontal en móvil */
           <div className="overflow-x-auto -mx-6 px-6">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {mostrarFecha && (
@@ -126,12 +126,13 @@ const VentasRecientes = ({
                   <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Monto en caja
                   </th>
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Total venta
+                  </th>
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Estado
                   </th>
-                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                    Detalle
-                  </th>
+
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Nota
                   </th>
@@ -145,14 +146,13 @@ const VentasRecientes = ({
               <tbody className="divide-y divide-slate-50">
                 {ventas.map((venta) => {
                   const estaCancelando = cancelando === venta.id
-                  const esCancelada   = venta.estado === 'cancelada'
+                  const esCancelada = venta.estado === 'cancelada'
 
                   return (
                     <tr
                       key={venta.id}
-                      className={`transition-colors duration-150 ${
-                        esCancelada ? 'opacity-60' : 'hover:bg-slate-50/70'
-                      }`}
+                      className={`transition-colors duration-150 ${esCancelada ? 'opacity-60' : 'hover:bg-slate-50/70'
+                        }`}
                     >
                       {mostrarFecha && (
                         <td className="py-3.5 pr-4">
@@ -188,11 +188,18 @@ const VentasRecientes = ({
                       {/* Servicio(s) */}
                       <td className="py-3.5 pr-4">
                         {venta.servicios?.length > 1 ? (
-                          <ul className="text-sm text-slate-600 leading-tight space-y-0.5">
-                            {venta.servicios.map((s) => (
-                              <li key={s.id}>{s.nombre}</li>
-                            ))}
-                          </ul>
+                          <div className="flex flex-col items-start">
+                            <span className="text-sm text-slate-600 leading-tight">
+                              {venta.servicios[0].nombre}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDetalleId(venta.id)}
+                              className="text-xs font-semibold text-pink-600 hover:text-pink-700 hover:underline transition-colors mt-1"
+                            >
+                              Ver más (+{venta.servicios.length - 1})
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-sm text-slate-600 leading-tight">
                             {venta.servicio}
@@ -200,7 +207,7 @@ const VentasRecientes = ({
                         )}
                       </td>
 
-                      {/* Monto */}
+                      {/* Monto en caja */}
                       <td className="py-3.5 pr-4 text-right">
                         <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
                           {venta.cashea ? (
@@ -211,12 +218,6 @@ const VentasRecientes = ({
                               <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                                 {formatCurrency(venta.monto_caja ?? venta.total)}
                               </span>
-                              {!esCancelada && (
-                                <span className="text-xs text-slate-500">En caja</span>
-                              )}
-                              <span className={`text-xs ${esCancelada ? 'line-through text-slate-400' : 'text-slate-400'}`}>
-                                Total venta: {formatCurrency(venta.total)}
-                              </span>
                             </>
                           ) : (
                             <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
@@ -224,6 +225,19 @@ const VentasRecientes = ({
                             </span>
                           )}
                         </div>
+                      </td>
+
+                      {/* Total venta */}
+                      <td className="py-3.5 pr-4 text-right">
+                        {venta.cashea ? (
+                          <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {formatCurrency(venta.total)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Estado badge */}
@@ -239,20 +253,7 @@ const VentasRecientes = ({
                         )}
                       </td>
 
-                      {/* Ver detalle */}
-                      <td className="py-3.5 pr-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setDetalleId(venta.id)}
-                          className="inline-flex items-center gap-1 text-xs font-semibold
-                                     text-pink-600 hover:text-pink-700 hover:bg-pink-50
-                                     px-2.5 py-1.5 rounded-lg transition-colors"
-                          title="Ver detalle de la venta"
-                        >
-                          <Eye size={13} />
-                          Ver
-                        </button>
-                      </td>
+
 
                       {/* Generar nota de entrega */}
                       <td className="py-3.5 pr-4 text-center">
@@ -267,7 +268,7 @@ const VentasRecientes = ({
                             title="Generar nota de entrega"
                           >
                             <ExternalLink size={12} />
-                            Generar Nota
+                            Generar
                           </button>
                         ) : (
                           <span className="text-xs text-slate-300">—</span>
