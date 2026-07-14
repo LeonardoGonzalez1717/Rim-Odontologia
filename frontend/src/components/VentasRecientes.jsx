@@ -123,10 +123,10 @@ const VentasRecientes = ({
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Servicio
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-8">
                     Monto en caja
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-8">
                     Total venta
                   </th>
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
@@ -208,7 +208,7 @@ const VentasRecientes = ({
                       </td>
 
                       {/* Monto en caja */}
-                      <td className="py-3.5 pr-4 text-right">
+                      <td className="py-3.5 pr-4 text-right pl-8">
                         <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
                           {venta.cashea ? (
                             <>
@@ -228,7 +228,7 @@ const VentasRecientes = ({
                       </td>
 
                       {/* Total venta */}
-                      <td className="py-3.5 pr-4 text-right">
+                      <td className="py-3.5 pr-4 text-right pl-8">
                         {venta.cashea ? (
                           <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
                             <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>

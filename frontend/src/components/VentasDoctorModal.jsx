@@ -43,7 +43,7 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
   }, [onClose])
 
   const completadas = ventas.filter((v) => v.estado === 'completada')
-  const totalEnCaja = completadas.reduce((sum, v) => sum + (v.monto_caja ?? v.total), 0)
+  const totalVendido = completadas.reduce((sum, v) => sum + (v.cashea ? v.total : (v.monto_caja ?? v.total)), 0)
 
   const {
     itemsPaginados: ventasPagina,
@@ -102,8 +102,8 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
               <p className="text-lg font-bold text-slate-800">{doctor.cantidad}</p>
             </div>
             <div className="bg-pink-50 rounded-xl px-4 py-3 border border-pink-100 col-span-2 sm:col-span-1">
-              <p className="text-xs text-pink-600 font-medium">Total en caja</p>
-              <p className="text-lg font-bold text-pink-700">{fmt(totalEnCaja)}</p>
+              <p className="text-xs text-pink-600 font-medium">Total vendido</p>
+              <p className="text-lg font-bold text-pink-700">{fmt(totalVendido)}</p>
             </div>
           </div>
         </div>
@@ -172,9 +172,16 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
                             )}
                           </td>
                           <td className="py-3.5 pr-3">
-                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {fmt(venta.monto_caja ?? venta.total)}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                {fmt(venta.cashea ? venta.total : (venta.monto_caja ?? venta.total))}
+                              </span>
+                              {venta.cashea && (
+                                <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                                  Cashea
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5">
                             {esCancelada ? (
