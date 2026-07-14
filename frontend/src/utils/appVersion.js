@@ -3,6 +3,7 @@
 // =============================================================================
 
 const STORAGE_KEY = 'rim_app_build_id'
+const SESSION_RELOADED = 'rim_entry_reloaded'
 
 /**
  * Compara el ID de build actual con el guardado en el navegador.
@@ -23,4 +24,12 @@ export function checkAppVersion() {
   if (!stored) {
     localStorage.setItem(STORAGE_KEY, current)
   }
+}
+
+export function autoRefreshOnEntry() {
+  const yaRecargo = sessionStorage.getItem(SESSION_RELOADED)
+  if (yaRecargo) return  // Ya se hizo el reload en esta sesión → no hacer nada
+
+  sessionStorage.setItem(SESSION_RELOADED, '1')
+  window.location.reload()
 }

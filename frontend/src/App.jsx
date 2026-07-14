@@ -24,10 +24,10 @@ import AsistenteVenta      from './pages/AsistenteVenta'
 import Logo                from './components/Logo'
 import BackendLoader       from './components/BackendLoader'
 import { useAuth }         from './context/AuthContext'
-import {
-  getDashboard, getDatos, getVentas, cancelarVenta,
+import { getDashboard, getDatos, getVentas, cancelarVenta,
 } from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas } from './utils/fechas'
+import { useVisibilityRefresh } from './hooks/useVisibilityRefresh'
 
 const VENTAS_POR_PAGINA = 10
 
@@ -281,6 +281,13 @@ function AdminApp() {
     }
     cargarDashboardSecuencial(fechaVentas, paginaVentas)
   }, [paginaActual]) // eslint-disable-line
+
+  // Refresco automático al volver a la pestaña (>30s fuera → recarga de datos,
+  // >10min fuera → reload completo de la página — manejado internamente por el hook)
+  useVisibilityRefresh(
+    () => cargarDashboardSecuencial(fechaVentasRef.current, paginaVentasRef.current),
+    !!user,  // Solo activo cuando hay sesión iniciada
+  )
 
   // ─────────────────────────────────────────────────────────────────
   // Cancelar una venta

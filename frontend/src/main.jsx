@@ -5,9 +5,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
-import { checkAppVersion } from './utils/appVersion.js'
+import { checkAppVersion, autoRefreshOnEntry } from './utils/appVersion.js'
 import './index.css'
 
+autoRefreshOnEntry()
 checkAppVersion()
 
 // Montar la aplicación en el elemento #root del index.html
