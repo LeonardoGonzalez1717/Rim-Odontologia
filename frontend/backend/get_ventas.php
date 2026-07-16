@@ -119,6 +119,7 @@ try {
     }, $stmt->fetchAll());
 
     $ventas = enriquecerVentasConServicios($pdo, $ventas);
+    $ventas = enriquecerVentasConDeudaCashea($pdo, $ventas);
 
     echo json_encode([
         'success'    => true,

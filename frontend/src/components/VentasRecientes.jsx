@@ -234,6 +234,11 @@ const VentasRecientes = ({
                             <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                               {formatCurrency(venta.total)}
                             </span>
+                            {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
+                              <span className="text-[11px] font-semibold text-amber-700">
+                                Debe {formatCurrency(venta.deuda_restante)}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-sm text-slate-300">—</span>
@@ -245,6 +250,10 @@ const VentasRecientes = ({
                         {esCancelada ? (
                           <span className="badge badge-cancelada gap-1">
                             <XCircle size={11} /> Cancelada
+                          </span>
+                        ) : venta.por_pagar ? (
+                          <span className="badge badge-por-pagar gap-1">
+                            <Clock size={11} /> Por terminar de pagar
                           </span>
                         ) : (
                           <span className="badge badge-completada gap-1">

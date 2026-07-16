@@ -154,6 +154,7 @@ try {
     }, $stmtRecientes->fetchAll());
 
     $ventasRecientes = enriquecerVentasConServicios($pdo, $ventasRecientes);
+    $ventasRecientes = enriquecerVentasConDeudaCashea($pdo, $ventasRecientes);
 
     echo json_encode([
         'success'             => true,

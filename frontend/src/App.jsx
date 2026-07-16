@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Loader2, AlertCircle, X,
   LayoutDashboard, UserCog, Stethoscope, Menu,
-  ChevronRight, LogOut, UserCircle, Users, Contact, CreditCard,
+  ChevronRight, LogOut, UserCircle, Users, Contact,
 } from 'lucide-react'
 
 import Dashboard           from './components/Dashboard'
@@ -18,7 +18,6 @@ import Doctores            from './pages/Doctores'
 import Servicios           from './pages/Servicios'
 import Clientes            from './pages/Clientes'
 import Usuarios            from './pages/Usuarios'
-import AjusteCashea        from './pages/AjusteCashea'
 import Login               from './pages/Login'
 import AsistenteVenta      from './pages/AsistenteVenta'
 import Logo                from './components/Logo'
@@ -37,7 +36,6 @@ const PAGES = [
   { id: 'doctores',  label: 'Doctores',      icon: UserCog,          section: 'Gestión'          },
   { id: 'clientes',  label: 'Clientes',      icon: Contact,          section: 'Gestión'          },
   { id: 'servicios', label: 'Tratamientos',  icon: Stethoscope,      section: 'Gestión'          },
-  { id: 'ajuste-cashea', label: 'Ajuste Cashea', icon: CreditCard,      section: 'Administración'   },
   { id: 'usuarios',  label: 'Perfiles',      icon: Users,            section: 'Administración'   },
 ]
 
@@ -315,6 +313,11 @@ function AdminApp() {
     cargarDashboardSecuencial(fechaVentas, 1)
   }
 
+  const handleAbonoRegistrado = () => {
+    setToast({ mensaje: '¡Pago Cashea registrado en caja!', tipo: 'success' })
+    cargarDashboardSecuencial(fechaVentasRef.current, paginaVentasRef.current)
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Navegar a una página y cerrar sidebar móvil
   // ─────────────────────────────────────────────────────────────────
@@ -474,10 +477,6 @@ function AdminApp() {
             <Servicios onToast={setToast} />
           )}
 
-          {paginaActual === 'ajuste-cashea' && (
-            <AjusteCashea onToast={setToast} />
-          )}
-
           {/* ── Vista: Usuarios ── */}
           {paginaActual === 'usuarios' && (
             <Usuarios onToast={setToast} />
@@ -497,6 +496,7 @@ function AdminApp() {
         <RegistrarVentaModal
           onClose={() => setModalAbierto(false)}
           onVentaGuardada={handleVentaGuardada}
+          onAbonoRegistrado={handleAbonoRegistrado}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}

@@ -4,11 +4,12 @@
 // Cuando se selecciona un cliente con deuda Cashea, aparece un toggle para elegir
 // entre registrar una nueva venta o hacer un abono a la deuda existente.
 // Props:
-//   - onClose         {Function} Cierra el modal
-//   - onVentaGuardada {Function} Callback tras guardar exitosamente
-//   - doctores        {Array}    Lista de doctores activos
-//   - servicios       {Array}    Lista de servicios activos
-//   - clientes        {Array}    Lista de clientes activos (con tiene_deuda_cashea)
+//   - onClose            {Function} Cierra el modal
+//   - onVentaGuardada    {Function} Callback tras guardar una venta
+//   - onAbonoRegistrado  {Function} Callback tras registrar un abono Cashea
+//   - doctores           {Array}    Lista de doctores activos
+//   - servicios          {Array}    Lista de servicios activos
+//   - clientes           {Array}    Lista de clientes activos (con tiene_deuda_cashea)
 // =============================================================================
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
@@ -17,6 +18,7 @@ import {
   ChevronDown, ChevronUp, Banknote,
 } from 'lucide-react'
 import { registrarVenta, getDeudaCasheaCliente, registrarAbonoCashea } from '../api/api'
+import { formatearDMAa } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
 import ServicioSelect from './ServicioSelect'
@@ -42,6 +44,7 @@ const estadoInicial = {
 const RegistrarVentaModal = ({
   onClose,
   onVentaGuardada,
+  onAbonoRegistrado,
   doctores = [],
   servicios = [],
   clientes = [],
@@ -68,6 +71,7 @@ const RegistrarVentaModal = ({
   const [deudaExpandida, setDeudaExpandida] = useState(true)
   // ── Formulario de pago de deuda ──
   const [montoAbono, setMontoAbono]     = useState('')
+  const [descripcionAbono, setDescripcionAbono] = useState('')
   const [loadingAbono, setLoadingAbono] = useState(false)
   const [exitoAbono, setExitoAbono]     = useState(false)
   const [errorAbono, setErrorAbono]     = useState('')
@@ -101,10 +105,24 @@ const RegistrarVentaModal = ({
 
   const clienteTieneDeuda = clienteSeleccionado?.tiene_deuda_cashea === true
 
+  const ventaAbonoSeleccionada = useMemo(
+    () => deudaInfo?.ventas_cashea?.find((v) => String(v.id) === ventaAbonoId) ?? null,
+    [deudaInfo, ventaAbonoId],
+  )
+
+  const montoYaPagado = useMemo(() => {
+    if (!ventaAbonoSeleccionada) return 0
+    return (
+      (ventaAbonoSeleccionada.monto_caja_inicial ?? 0) +
+      (ventaAbonoSeleccionada.pagos_posteriores ?? 0)
+    )
+  }, [ventaAbonoSeleccionada])
+
   // ── Cargar deuda Cashea al seleccionar un cliente con deuda ──
   const cargarDeuda = useCallback(async (clienteId) => {
     setDeudaInfo(null)
     setMontoAbono('')
+    setDescripcionAbono('')
     setVentaAbonoId('')
     setErrorAbono('')
     setExitoAbono(false)
@@ -136,6 +154,7 @@ const RegistrarVentaModal = ({
       setModoAbono(false)
       setDeudaInfo(null)
       setMontoAbono('')
+      setDescripcionAbono('')
       setVentaAbonoId('')
       setErrorAbono('')
       setExitoAbono(false)
@@ -316,12 +335,20 @@ const RegistrarVentaModal = ({
     setLoadingAbono(true)
     try {
       const nombreCliente = clienteSeleccionado?.nombre ?? 'Cliente'
-      const concepto = `Abono Cashea – venta #${ventaAbonoId} – ${nombreCliente}`
+      const desc = descripcionAbono.trim()
+      const concepto = desc
+        ? `Abono Cashea – venta #${ventaAbonoId} – ${nombreCliente} – ${desc}`
+        : `Abono Cashea – venta #${ventaAbonoId} – ${nombreCliente}`
       await registrarAbonoCashea({ monto, concepto })
       setExitoAbono(true)
       setMontoAbono('')
-      // Recargar deuda actualizada
+      setDescripcionAbono('')
+      // Recargar deuda: ventas saldadas salen del select
       await cargarDeuda(form.cliente_id)
+      // Actualizar flag tiene_deuda_cashea del cliente
+      if (onRecargarClientes) await onRecargarClientes()
+      // Refrescar ingresos / cuotas del dashboard sin cerrar el modal
+      if (onAbonoRegistrado) onAbonoRegistrado()
       setTimeout(() => setExitoAbono(false), 3000)
     } catch (err) {
       setErrorAbono(err.message || 'Error al registrar el abono.')
@@ -460,43 +487,45 @@ const RegistrarVentaModal = ({
                 </div>
               )}
 
-              {/* Lista de ventas con deuda */}
+              {/* Formulario de abono */}
               {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length > 0 && (
                 <>
-                  {deudaInfo.ventas_cashea.map((v) => (
-                    <div key={v.id} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-slate-600">Venta #{v.id} · {v.fecha}</span>
-                        <span className="font-semibold text-slate-800">Pendiente: ${v.deuda_restante.toFixed(2)}</span>
+                  <div>
+                    <label className="form-label">Aplicar abono a</label>
+                    <select
+                      value={ventaAbonoId}
+                      onChange={(e) => { setErrorAbono(''); setVentaAbonoId(e.target.value) }}
+                      className="form-input"
+                    >
+                      {deudaInfo.ventas_cashea.map((v) => (
+                        <option key={v.id} value={String(v.id)}>
+                          {formatearDMAa(v.fecha)} — ${v.deuda_restante.toFixed(2)} pendiente
+                        </option>
+                      ))}
+                    </select>
+                    {ventaAbonoSeleccionada && (
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                        <span className="text-slate-600">
+                          Total venta:{' '}
+                          <span className="font-semibold text-slate-800">
+                            ${ventaAbonoSeleccionada.total.toFixed(2)}
+                          </span>
+                        </span>
+                        <span className="text-green-700">
+                          Ya pagado:{' '}
+                          <span className="font-semibold">
+                            ${montoYaPagado.toFixed(2)}
+                          </span>
+                        </span>
+                        <span className="text-amber-700">
+                          Pendiente:{' '}
+                          <span className="font-semibold">
+                            ${ventaAbonoSeleccionada.deuda_restante.toFixed(2)}
+                          </span>
+                        </span>
                       </div>
-                      <div className="flex gap-3 text-slate-400">
-                        <span>Total: ${v.total.toFixed(2)}</span>
-                        <span>Inicial: ${v.monto_caja_inicial.toFixed(2)}</span>
-                        {v.pagos_posteriores > 0 && <span>Abonado: ${v.pagos_posteriores.toFixed(2)}</span>}
-                      </div>
-                      {v.descripcion_cashea && (
-                        <p className="mt-1 text-slate-400 italic truncate">{v.descripcion_cashea}</p>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Selector de venta (si hay más de una) */}
-                  {deudaInfo.ventas_cashea.length > 1 && (
-                    <div>
-                      <label className="form-label">Aplicar abono a</label>
-                      <select
-                        value={ventaAbonoId}
-                        onChange={(e) => { setErrorAbono(''); setVentaAbonoId(e.target.value) }}
-                        className="form-input"
-                      >
-                        {deudaInfo.ventas_cashea.map((v) => (
-                          <option key={v.id} value={String(v.id)}>
-                            Venta #{v.id} ({v.fecha}) — ${v.deuda_restante.toFixed(2)} pendiente
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Monto del abono */}
                   <div>
@@ -515,6 +544,22 @@ const RegistrarVentaModal = ({
                     </div>
                   </div>
 
+                  {/* Descripción del abono */}
+                  <div>
+                    <label htmlFor="descripcion_abono" className="form-label">
+                      Descripción
+                    </label>
+                    <textarea
+                      id="descripcion_abono"
+                      rows={2}
+                      value={descripcionAbono}
+                      onChange={(e) => { setErrorAbono(''); setDescripcionAbono(e.target.value) }}
+                      placeholder="Ej: Cuota 2 de 4, pago parcial…"
+                      className="form-input resize-none"
+                      maxLength={180}
+                    />
+                  </div>
+
                   {/* Error / éxito del abono */}
                   {errorAbono && (
                     <p className="text-xs text-red-600 flex items-center gap-1">
@@ -526,55 +571,37 @@ const RegistrarVentaModal = ({
                       <CheckCircle2 size={12} /> Pago registrado correctamente.
                     </p>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={handleRegistrarAbono}
+                    disabled={loadingAbono || !montoAbono}
+                    className="w-full flex items-center justify-center gap-2
+                               bg-red-600 hover:bg-red-700 disabled:opacity-50
+                               text-white text-sm font-semibold rounded-xl px-4 py-2.5
+                               transition-colors duration-200"
+                  >
+                    {loadingAbono ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Registrando…
+                      </>
+                    ) : (
+                      <>
+                        <Banknote size={14} />
+                        Registrar Pago
+                      </>
+                    )}
+                  </button>
                 </>
               )}
 
               {/* Deuda saldada */}
               {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length === 0 && (
-                <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                  <CheckCircle2 size={13} className="text-green-500" />
-                  Este cliente no tiene deuda pendiente.
-                </p>
-              )}
-            </div>
-          )}
-                            <span className="font-semibold">¡Pago registrado correctamente!</span>
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={handleRegistrarAbono}
-                          disabled={loadingAbono || !montoAbono}
-                          className="w-full flex items-center justify-center gap-2
-                                     bg-red-600 hover:bg-red-700 disabled:opacity-50
-                                     text-white text-sm font-semibold rounded-xl px-4 py-2.5
-                                     transition-colors duration-200"
-                        >
-                          {loadingAbono ? (
-                            <>
-                              <Loader2 size={14} className="animate-spin" />
-                              Registrando…
-                            </>
-                          ) : (
-                            <>
-                              <Banknote size={14} />
-                              Registrar Pago
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Sin deuda activa (después de saldar) */}
-                  {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length === 0 && (
-                    <div className="flex items-center gap-2 text-green-700 bg-green-50
-                                    border border-green-200 rounded-xl p-3 text-sm">
-                      <CheckCircle2 size={16} />
-                      <span className="font-medium">¡Deuda saldada! Este cliente está al día.</span>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2 text-green-700 bg-green-50
+                                border border-green-200 rounded-xl p-3 text-sm">
+                  <CheckCircle2 size={16} />
+                  <span className="font-medium">¡Deuda saldada! Este cliente está al día.</span>
                 </div>
               )}
             </div>

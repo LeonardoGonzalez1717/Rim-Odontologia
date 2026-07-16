@@ -38,11 +38,21 @@ export const formatearFechaLarga = (fecha) =>
 
 /** Formato día/mes/año — ej: 05/07/2026 */
 export const formatearDMA = (fecha) => {
-  const d = parseFechaLocal(fecha)
+  const d = parseFechaLocal(String(fecha).slice(0, 10))
   const dia = String(d.getDate()).padStart(2, '0')
   const mes = String(d.getMonth() + 1).padStart(2, '0')
   const anio = d.getFullYear()
   return `${dia}/${mes}/${anio}`
+}
+
+/** Formato día-mes-año corto — ej: 15-07-26 */
+export const formatearDMAa = (fecha) => {
+  if (!fecha) return ''
+  const d = parseFechaLocal(String(fecha).slice(0, 10))
+  const dia = String(d.getDate()).padStart(2, '0')
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const anio = String(d.getFullYear()).slice(-2)
+  return `${dia}-${mes}-${anio}`
 }
 
 export const formatearFechaCorta = (fecha) => formatearDMA(fecha)

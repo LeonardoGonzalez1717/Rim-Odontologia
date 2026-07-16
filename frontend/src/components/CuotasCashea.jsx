@@ -9,6 +9,24 @@ import { usePaginacion } from '../hooks/usePaginacion'
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(value ?? 0)
 
+/** Parsea "Abono Cashea – venta #ID – Cliente – descripción" para el listado */
+const formatearConcepto = (concepto) => {
+  const raw = String(concepto || '').trim()
+  const match = raw.match(/^Abono Cashea – venta #\d+ – (.+)$/)
+  if (!match) {
+    return { titulo: raw || 'Cuota de Cashea', detalle: null }
+  }
+
+  const partes = match[1].split(' – ')
+  const cliente = partes[0]?.trim() || 'Cliente'
+  const descripcion = partes.slice(1).join(' – ').trim()
+
+  return {
+    titulo: descripcion || `Abono · ${cliente}`,
+    detalle: cliente,
+  }
+}
+
 const CuotasCashea = ({ datos = [], total = 0 }) => {
   const {
     itemsPaginados: cuotasPagina,
@@ -40,25 +58,33 @@ const CuotasCashea = ({ datos = [], total = 0 }) => {
       ) : (
         <>
           <ul className="divide-y divide-slate-100 -mx-6">
-            {cuotasPagina.map((cuota) => (
-              <li
-                key={cuota.id}
-                className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-slate-50/70 transition-colors"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate">
-                    {cuota.concepto}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-slate-500 mt-0.5">
-                    <Clock size={12} className="flex-shrink-0" />
-                    <span className="text-xs">{cuota.hora}</span>
+            {cuotasPagina.map((cuota) => {
+              const { titulo, detalle } = formatearConcepto(cuota.concepto)
+              return (
+                <li
+                  key={cuota.id}
+                  className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-slate-50/70 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">
+                      {titulo}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-500 mt-0.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        <Clock size={12} className="flex-shrink-0" />
+                        {cuota.hora}
+                      </span>
+                      {detalle && (
+                        <span className="text-xs truncate">{detalle}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
-                  {formatCurrency(cuota.monto)}
-                </span>
-              </li>
-            ))}
+                  <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
+                    {formatCurrency(cuota.monto)}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
 
           <Paginacion

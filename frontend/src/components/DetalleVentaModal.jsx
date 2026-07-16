@@ -135,6 +135,8 @@ const DetalleVentaModal = ({ venta, onClose, mostrarFecha = false }) => {
             </span>
             {esCancelada ? (
               <span className="badge badge-cancelada">Cancelada</span>
+            ) : venta.por_pagar ? (
+              <span className="badge badge-por-pagar">Por terminar de pagar</span>
             ) : (
               <span className="badge badge-completada">Completada</span>
             )}

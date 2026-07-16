@@ -36,10 +36,9 @@ const estilos = {
     ...base,
     color: '#94a3b8',
   }),
-  singleValue: (base, { data }) => ({
+  singleValue: (base) => ({
     ...base,
-    color: data?.tieneDeuda ? '#b91c1c' : '#1e293b',
-    fontWeight: data?.tieneDeuda ? 600 : 'normal',
+    color: '#1e293b',
   }),
   menu: (base) => ({
     ...base,
@@ -52,17 +51,12 @@ const estilos = {
     ...base,
     zIndex: 9999,
   }),
-  option: (base, { isFocused, isSelected, data }) => ({
+  option: (base, { isFocused, isSelected }) => ({
     ...base,
     fontSize: 14,
-    backgroundColor: isSelected
-      ? (data?.tieneDeuda ? '#991b1b' : '#db2777')
-      : isFocused
-        ? (data?.tieneDeuda ? '#fee2e2' : '#fce7f3')
-        : undefined,
-    color: isSelected ? '#fff' : (data?.tieneDeuda ? '#991b1b' : '#1e293b'),
+    backgroundColor: isSelected ? '#db2777' : isFocused ? '#fce7f3' : undefined,
+    color: isSelected ? '#fff' : '#1e293b',
     cursor: 'pointer',
-    fontWeight: data?.tieneDeuda && !isSelected ? 600 : 'normal',
   }),
   input: (base) => ({
     ...base,
@@ -71,32 +65,54 @@ const estilos = {
   indicatorSeparator: () => ({ display: 'none' }),
 }
 
-// Renderizador de opciones con badge de deuda
-const formatOptionLabel = (opcion) => {
-  if (opcion.tieneDeuda) {
+// Renderizador de opciones con badge de deuda (sin teñir todo el texto de rojo)
+const formatOptionLabel = (opcion, { context }) => {
+  const texto = `${opcion.cedula} — ${opcion.nombre}`
+  if (!opcion.tieneDeuda) {
+    return <span>{texto}</span>
+  }
+
+  // En el valor seleccionado: texto normal + badge compacto
+  if (context === 'value') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ color: '#dc2626', fontSize: 12, lineHeight: 1 }}>⚠️</span>
-        <span style={{ color: '#991b1b', fontWeight: 600 }}>
-          {opcion.cedula} — {opcion.nombre}
-        </span>
+        <span>{texto}</span>
         <span style={{
-          marginLeft: 'auto',
           fontSize: 10,
           fontWeight: 700,
-          color: '#fff',
-          backgroundColor: '#dc2626',
+          color: '#b45309',
+          backgroundColor: '#fffbeb',
+          border: '1px solid #fde68a',
           borderRadius: 6,
           padding: '1px 6px',
           letterSpacing: '0.03em',
           whiteSpace: 'nowrap',
         }}>
-          DEUDA CASHEA
+          DEUDA
         </span>
       </div>
     )
   }
-  return <span>{opcion.cedula} — {opcion.nombre}</span>
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span>{texto}</span>
+      <span style={{
+        marginLeft: 'auto',
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#b45309',
+        backgroundColor: '#fffbeb',
+        border: '1px solid #fde68a',
+        borderRadius: 6,
+        padding: '1px 6px',
+        letterSpacing: '0.03em',
+        whiteSpace: 'nowrap',
+      }}>
+        DEUDA CASHEA
+      </span>
+    </div>
+  )
 }
 
 const ClienteSelect = ({

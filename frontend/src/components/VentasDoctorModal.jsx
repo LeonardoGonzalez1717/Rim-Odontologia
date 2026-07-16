@@ -188,6 +188,10 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
                               <span className="badge badge-cancelada gap-1">
                                 <XCircle size={11} /> Cancelada
                               </span>
+                            ) : venta.por_pagar ? (
+                              <span className="badge badge-por-pagar gap-1">
+                                <Clock size={11} /> Por terminar de pagar
+                              </span>
                             ) : (
                               <span className="badge badge-completada gap-1">
                                 <CheckCircle2 size={11} /> Completada

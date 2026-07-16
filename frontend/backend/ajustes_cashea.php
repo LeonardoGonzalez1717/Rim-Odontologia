@@ -3,7 +3,7 @@
 // ajustes_cashea.php — Registro de cuotas Cashea que ingresan a caja
 // Métodos:
 //   GET  → Lista ajustes por fecha (query: fecha=YYYY-MM-DD)
-//   POST → Registra un nuevo ajuste { monto, fecha_ingreso? }
+//   POST → Registra un nuevo ajuste { monto, concepto?, fecha_ingreso? }
 // =============================================================================
 
 header('Access-Control-Allow-Origin: *');
@@ -92,13 +92,22 @@ try {
         ? $datos['fecha_ingreso']
         : date('Y-m-d H:i:s');
 
+    // Concepto personalizado (p. ej. abono vinculado a una venta) o el default de cuota
+    $concepto = trim((string) ($datos['concepto'] ?? ''));
+    if ($concepto === '') {
+        $concepto = CONCEPTO_CUOTA_CASHEA;
+    }
+    if (mb_strlen($concepto) > 255) {
+        $concepto = mb_substr($concepto, 0, 255);
+    }
+
     $stmt = $pdo->prepare(
         "INSERT INTO ajustes_cashea (monto, concepto, fecha_ingreso)
          VALUES (:monto, :concepto, :fecha_ingreso)"
     );
     $stmt->execute([
         ':monto'         => $monto,
-        ':concepto'      => CONCEPTO_CUOTA_CASHEA,
+        ':concepto'      => $concepto,
         ':fecha_ingreso' => $fechaIngreso,
     ]);
 
