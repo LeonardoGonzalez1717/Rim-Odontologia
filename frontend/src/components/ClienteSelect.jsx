@@ -1,6 +1,8 @@
 // =============================================================================
 // components/ClienteSelect.jsx
 // Select con búsqueda para elegir cliente por cédula o nombre (react-select)
+// Props adicionales:
+//   - clientesConDeuda {Set<string>} — Set de IDs (string) con deuda Cashea activa
 // =============================================================================
 import { useEffect, useMemo, useRef } from 'react'
 import Select from 'react-select'
@@ -34,9 +36,10 @@ const estilos = {
     ...base,
     color: '#94a3b8',
   }),
-  singleValue: (base) => ({
+  singleValue: (base, { data }) => ({
     ...base,
-    color: '#1e293b',
+    color: data?.tieneDeuda ? '#b91c1c' : '#1e293b',
+    fontWeight: data?.tieneDeuda ? 600 : 'normal',
   }),
   menu: (base) => ({
     ...base,
@@ -49,18 +52,51 @@ const estilos = {
     ...base,
     zIndex: 9999,
   }),
-  option: (base, { isFocused, isSelected }) => ({
+  option: (base, { isFocused, isSelected, data }) => ({
     ...base,
     fontSize: 14,
-    backgroundColor: isSelected ? '#db2777' : isFocused ? '#fce7f3' : undefined,
-    color: isSelected ? '#fff' : '#1e293b',
+    backgroundColor: isSelected
+      ? (data?.tieneDeuda ? '#991b1b' : '#db2777')
+      : isFocused
+        ? (data?.tieneDeuda ? '#fee2e2' : '#fce7f3')
+        : undefined,
+    color: isSelected ? '#fff' : (data?.tieneDeuda ? '#991b1b' : '#1e293b'),
     cursor: 'pointer',
+    fontWeight: data?.tieneDeuda && !isSelected ? 600 : 'normal',
   }),
   input: (base) => ({
     ...base,
     color: '#1e293b',
   }),
   indicatorSeparator: () => ({ display: 'none' }),
+}
+
+// Renderizador de opciones con badge de deuda
+const formatOptionLabel = (opcion) => {
+  if (opcion.tieneDeuda) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: '#dc2626', fontSize: 12, lineHeight: 1 }}>⚠️</span>
+        <span style={{ color: '#991b1b', fontWeight: 600 }}>
+          {opcion.cedula} — {opcion.nombre}
+        </span>
+        <span style={{
+          marginLeft: 'auto',
+          fontSize: 10,
+          fontWeight: 700,
+          color: '#fff',
+          backgroundColor: '#dc2626',
+          borderRadius: 6,
+          padding: '1px 6px',
+          letterSpacing: '0.03em',
+          whiteSpace: 'nowrap',
+        }}>
+          DEUDA CASHEA
+        </span>
+      </div>
+    )
+  }
+  return <span>{opcion.cedula} — {opcion.nombre}</span>
 }
 
 const ClienteSelect = ({
@@ -70,6 +106,7 @@ const ClienteSelect = ({
   onChange,
   placeholder = 'Buscar por cédula o nombre…',
   inputRef = null,
+  clientesConDeuda = null, // Set<string> o null
 }) => {
   const selectRef = useRef(null)
 
@@ -80,8 +117,12 @@ const ClienteSelect = ({
         label: `${c.cedula} — ${c.nombre}`,
         cedula: c.cedula,
         nombre: c.nombre,
+        // Si viene flag del backend úsalo; si viene Set úsalo; si no, false
+        tieneDeuda: c.tiene_deuda_cashea === true
+          || (clientesConDeuda instanceof Set && clientesConDeuda.has(String(c.id)))
+          || false,
       })),
-    [clientes],
+    [clientes, clientesConDeuda],
   )
 
   const seleccionado = useMemo(
@@ -111,6 +152,7 @@ const ClienteSelect = ({
       noOptionsMessage={() => 'No se encontró ningún cliente'}
       loadingMessage={() => 'Buscando…'}
       styles={estilos}
+      formatOptionLabel={formatOptionLabel}
       menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
       menuPosition="fixed"
       classNamePrefix="cliente-select"

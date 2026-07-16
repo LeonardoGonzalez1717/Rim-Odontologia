@@ -418,3 +418,23 @@ export async function registrarAjusteCashea(datos) {
     body: JSON.stringify(datos),
   })
 }
+
+// =============================================================================
+// DEUDA CASHEA POR CLIENTE
+// =============================================================================
+
+// GET /api/deuda_cashea_cliente.php?cliente_id=X
+// Devuelve las ventas con Cashea que aún tienen deuda pendiente para un cliente
+// @param {number} clienteId
+export async function getDeudaCasheaCliente(clienteId) {
+  return apiFetch(`${API_BASE}/deuda_cashea_cliente.php?cliente_id=${encodeURIComponent(clienteId)}`)
+}
+
+// POST /api/ajustes_cashea.php — Registra un abono de deuda Cashea vinculado a una venta
+// @param {{ monto: number, concepto: string, fecha_ingreso?: string }} datos
+export async function registrarAbonoCashea(datos) {
+  return apiFetch(`${API_BASE}/ajustes_cashea.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}

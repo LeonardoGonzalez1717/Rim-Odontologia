@@ -40,14 +40,35 @@ try {
     );
     $servicios = $stmtServicios->fetchAll();
 
-    // --- Consulta de clientes activos ---
+    // --- Consulta de clientes activos + flag de deuda Cashea ---
+    // Un cliente "tiene deuda" si tiene al menos una venta con cashea=1,
+    // estado=completada, y (total - monto_caja - abonos_posteriores) > 0.
     $stmtClientes = $pdo->query(
-        "SELECT id, cedula, nombre, telefono
-         FROM clientes
-         WHERE estado = 'activo'
-         ORDER BY nombre ASC"
+        "SELECT
+            c.id,
+            c.cedula,
+            c.nombre,
+            c.telefono,
+            EXISTS (
+              SELECT 1 FROM ventas v
+              WHERE v.cliente_id = c.id
+                AND v.cashea     = 1
+                AND v.estado     = 'completada'
+                AND (v.total - v.monto_caja - COALESCE(
+                      (SELECT SUM(a.monto)
+                       FROM ajustes_cashea a
+                       WHERE a.concepto LIKE CONCAT('Abono Cashea – venta #', v.id, ' –%')
+                      ), 0
+                    )) > 0.001
+            ) AS tiene_deuda_cashea
+         FROM clientes c
+         WHERE c.estado = 'activo'
+         ORDER BY c.nombre ASC"
     );
-    $clientes = $stmtClientes->fetchAll();
+    $clientes = array_map(
+        fn($c) => [...$c, 'tiene_deuda_cashea' => (bool) $c['tiene_deuda_cashea']],
+        $stmtClientes->fetchAll()
+    );
 
     // --- Respuesta exitosa ---
     echo json_encode([
