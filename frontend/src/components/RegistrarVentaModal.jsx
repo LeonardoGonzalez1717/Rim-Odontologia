@@ -68,6 +68,7 @@ const RegistrarVentaModal = ({
   // ── Estado de deuda Cashea del cliente seleccionado ──
   const [deudaInfo, setDeudaInfo]           = useState(null)  // null | { deuda_total, ventas_cashea }
   const [loadingDeuda, setLoadingDeuda]     = useState(false)
+  const [errorDeuda, setErrorDeuda]         = useState('')
   const [deudaExpandida, setDeudaExpandida] = useState(true)
   // ── Formulario de pago de deuda ──
   const [montoAbono, setMontoAbono]     = useState('')
@@ -125,6 +126,7 @@ const RegistrarVentaModal = ({
     setDescripcionAbono('')
     setVentaAbonoId('')
     setErrorAbono('')
+    setErrorDeuda('')
     setExitoAbono(false)
     if (!clienteId) return
     setLoadingDeuda(true)
@@ -138,6 +140,7 @@ const RegistrarVentaModal = ({
     } catch (err) {
       console.error('Error al cargar deuda Cashea:', err)
       setDeudaInfo(null)
+      setErrorDeuda(err.message || 'No se pudo cargar la deuda del cliente.')
     } finally {
       setLoadingDeuda(false)
     }
@@ -157,6 +160,7 @@ const RegistrarVentaModal = ({
       setDescripcionAbono('')
       setVentaAbonoId('')
       setErrorAbono('')
+      setErrorDeuda('')
       setExitoAbono(false)
     }
   }, [form.cliente_id, clienteTieneDeuda, cargarDeuda])
@@ -488,7 +492,7 @@ const RegistrarVentaModal = ({
               )}
 
               {/* Formulario de abono */}
-              {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length > 0 && (
+              {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length > 0 ? (
                 <>
                   <div>
                     <label className="form-label">Aplicar abono a</label>
@@ -594,16 +598,37 @@ const RegistrarVentaModal = ({
                     )}
                   </button>
                 </>
-              )}
-
-              {/* Deuda saldada */}
-              {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length === 0 && (
-                <div className="flex items-center gap-2 text-green-700 bg-green-50
-                                border border-green-200 rounded-xl p-3 text-sm">
-                  <CheckCircle2 size={16} />
-                  <span className="font-medium">¡Deuda saldada! Este cliente está al día.</span>
+              ) : !loadingDeuda ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1.5">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle size={13} />
+                    No se pudo mostrar el formulario de abono
+                  </p>
+                  {errorDeuda ? (
+                    <p>
+                      Error al consultar deuda:{' '}
+                      <span className="font-medium">{errorDeuda}</span>
+                      {' '}(revisá que exista <code className="bg-amber-100 px-1 rounded">deuda_cashea_cliente.php</code> en el servidor)
+                    </p>
+                  ) : !deudaInfo ? (
+                    <p>
+                      <code className="bg-amber-100 px-1 rounded">deudaInfo</code> es null:
+                      la API no devolvió datos (posible 404/error de red).
+                    </p>
+                  ) : (
+                    <p>
+                      La API respondió, pero{' '}
+                      <code className="bg-amber-100 px-1 rounded">ventas_cashea</code> está vacío
+                      (no hay ventas Cashea con saldo pendiente para este cliente, o el cálculo de deuda dio 0).
+                    </p>
+                  )}
+                  <p className="text-amber-700/80">
+                    cliente_id={form.cliente_id || '—'} ·
+                    ventas={deudaInfo?.ventas_cashea?.length ?? 'n/a'} ·
+                    deuda_total={deudaInfo?.deuda_total ?? 'n/a'}
+                  </p>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
