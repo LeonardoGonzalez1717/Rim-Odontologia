@@ -40,9 +40,9 @@ try {
     );
     $servicios = $stmtServicios->fetchAll();
 
-    // --- Consulta de clientes activos + flag de deuda Cashea ---
-    // Un cliente "tiene deuda" si tiene al menos una venta con cashea=1,
-    // estado=completada, y (total - monto_caja - abonos_posteriores) > 0.
+    // --- Consulta de clientes activos + deuda Cashea + saldo a favor ---
+    // Deuda Cashea: venta cashea con saldo pendiente de pago.
+    // Saldo a favor: tratamientos pagados pero no realizados (realizado=0).
     $stmtClientes = $pdo->query(
         "SELECT
             c.id,
@@ -60,13 +60,29 @@ try {
                        WHERE a.concepto LIKE CONCAT('Abono Cashea – venta #', v.id, ' –%')
                       ), 0
                     )) > 0.001
-            ) AS tiene_deuda_cashea
+            ) AS tiene_deuda_cashea,
+            COALESCE((
+              SELECT SUM(vd.precio)
+              FROM venta_detalles vd
+              INNER JOIN ventas v ON v.id = vd.venta_id
+              WHERE v.cliente_id = c.id
+                AND v.estado = 'completada'
+                AND vd.realizado = 0
+            ), 0) AS saldo_a_favor
          FROM clientes c
          WHERE c.estado = 'activo'
          ORDER BY c.nombre ASC"
     );
     $clientes = array_map(
-        fn($c) => [...$c, 'tiene_deuda_cashea' => (bool) $c['tiene_deuda_cashea']],
+        function ($c) {
+            $saldo = round((float) $c['saldo_a_favor'], 2);
+            return [
+                ...$c,
+                'tiene_deuda_cashea'  => (bool) $c['tiene_deuda_cashea'],
+                'saldo_a_favor'       => $saldo,
+                'tiene_saldo_a_favor' => $saldo > 0.001,
+            ];
+        },
         $stmtClientes->fetchAll()
     );
 

@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS `venta_detalles` (
   `venta_id`    INT(11)        NOT NULL,
   `servicio_id` INT(11)        NOT NULL,
   `precio`      DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `realizado`   TINYINT(1)     NOT NULL DEFAULT 1 COMMENT '1=hoy, 0=pendiente (saldo a favor)',
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_detalle_venta`
     FOREIGN KEY (`venta_id`)    REFERENCES `ventas`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,

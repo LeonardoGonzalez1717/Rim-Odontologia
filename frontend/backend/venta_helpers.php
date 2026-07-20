@@ -21,7 +21,8 @@ function obtenerDetallesPorVentas(PDO $pdo, array $ventaIds): array
             vd.venta_id,
             vd.servicio_id,
             s.nombre_servicio AS nombre,
-            vd.precio
+            vd.precio,
+            COALESCE(vd.realizado, 1) AS realizado
          FROM venta_detalles vd
          INNER JOIN servicios_tratamientos s ON vd.servicio_id = s.id
          WHERE vd.venta_id IN ($placeholders)
@@ -37,6 +38,7 @@ function obtenerDetallesPorVentas(PDO $pdo, array $ventaIds): array
             'servicio_id' => (int) $row['servicio_id'],
             'nombre'      => $row['nombre'],
             'precio'      => (float) $row['precio'],
+            'realizado'   => !isset($row['realizado']) || (bool) $row['realizado'],
         ];
     }
 

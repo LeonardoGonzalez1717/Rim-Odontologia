@@ -65,51 +65,56 @@ const estilos = {
   indicatorSeparator: () => ({ display: 'none' }),
 }
 
-// Renderizador de opciones con badge de deuda (sin teñir todo el texto de rojo)
+// Renderizador de opciones con badges de deuda / saldo a favor (le debemos)
 const formatOptionLabel = (opcion, { context }) => {
   const texto = `${opcion.cedula} — ${opcion.nombre}`
-  if (!opcion.tieneDeuda) {
+  const badges = []
+
+  if (opcion.tieneDeuda) {
+    badges.push({
+      key: 'deuda',
+      label: context === 'value' ? 'DEUDA' : 'DEUDA CASHEA',
+      color: '#b45309',
+      bg: '#fffbeb',
+      border: '#fde68a',
+    })
+  }
+  if (opcion.tieneSaldoFavor) {
+    badges.push({
+      key: 'saldo',
+      label: 'SALDO A FAVOR',
+      color: '#047857',
+      bg: '#ecfdf5',
+      border: '#a7f3d0',
+    })
+  }
+
+  if (badges.length === 0) {
     return <span>{texto}</span>
   }
 
-  // En el valor seleccionado: texto normal + badge compacto
-  if (context === 'value') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span>{texto}</span>
-        <span style={{
-          fontSize: 10,
-          fontWeight: 700,
-          color: '#b45309',
-          backgroundColor: '#fffbeb',
-          border: '1px solid #fde68a',
-          borderRadius: 6,
-          padding: '1px 6px',
-          letterSpacing: '0.03em',
-          whiteSpace: 'nowrap',
-        }}>
-          DEUDA
-        </span>
-      </div>
-    )
-  }
-
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span>{texto}</span>
-      <span style={{
-        marginLeft: 'auto',
-        fontSize: 10,
-        fontWeight: 700,
-        color: '#b45309',
-        backgroundColor: '#fffbeb',
-        border: '1px solid #fde68a',
-        borderRadius: 6,
-        padding: '1px 6px',
-        letterSpacing: '0.03em',
-        whiteSpace: 'nowrap',
-      }}>
-        DEUDA CASHEA
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+      <span style={{ flex: 1, minWidth: 0 }}>{texto}</span>
+      <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        {badges.map((b) => (
+          <span
+            key={b.key}
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: b.color,
+              backgroundColor: b.bg,
+              border: `1px solid ${b.border}`,
+              borderRadius: 6,
+              padding: '1px 6px',
+              letterSpacing: '0.03em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {b.label}
+          </span>
+        ))}
       </span>
     </div>
   )
@@ -136,6 +141,9 @@ const ClienteSelect = ({
         // Si viene flag del backend úsalo; si viene Set úsalo; si no, false
         tieneDeuda: c.tiene_deuda_cashea === true
           || (clientesConDeuda instanceof Set && clientesConDeuda.has(String(c.id)))
+          || false,
+        tieneSaldoFavor: c.tiene_saldo_a_favor === true
+          || (Number(c.saldo_a_favor) > 0.001)
           || false,
       })),
     [clientes, clientesConDeuda],

@@ -9,11 +9,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Loader2, AlertCircle, X,
   LayoutDashboard, UserCog, Stethoscope, Menu,
-  ChevronRight, LogOut, UserCircle, Users, Contact,
+  ChevronRight, LogOut, UserCircle, Users, Contact, ClipboardList,
 } from 'lucide-react'
 
 import Dashboard           from './components/Dashboard'
 import RegistrarVentaModal from './components/RegistrarVentaModal'
+import TratamientosPendientes from './components/TratamientosPendientes'
 import Doctores            from './pages/Doctores'
 import Servicios           from './pages/Servicios'
 import Clientes            from './pages/Clientes'
@@ -32,11 +33,12 @@ const VENTAS_POR_PAGINA = 10
 
 // Definición de las páginas del navbar
 const PAGES = [
-  { id: 'dashboard', label: 'Dashboard',     icon: LayoutDashboard,  section: 'Principal'        },
-  { id: 'doctores',  label: 'Doctores',      icon: UserCog,          section: 'Gestión'          },
-  { id: 'clientes',  label: 'Clientes',      icon: Contact,          section: 'Gestión'          },
-  { id: 'servicios', label: 'Tratamientos',  icon: Stethoscope,      section: 'Gestión'          },
-  { id: 'usuarios',  label: 'Perfiles',      icon: Users,            section: 'Administración'   },
+  { id: 'dashboard',  label: 'Dashboard',                icon: LayoutDashboard, section: 'Principal' },
+  { id: 'doctores',   label: 'Doctores',                 icon: UserCog,         section: 'Gestión' },
+  { id: 'clientes',   label: 'Clientes',                 icon: Contact,         section: 'Gestión' },
+  { id: 'servicios',  label: 'Tratamientos',             icon: Stethoscope,     section: 'Gestión' },
+  { id: 'pendientes', label: 'Tratamientos pendientes',  icon: ClipboardList,   section: 'Gestión' },
+  { id: 'usuarios',   label: 'Perfiles',                 icon: Users,           section: 'Administración' },
 ]
 
 // Agrupar páginas por sección
@@ -475,6 +477,15 @@ function AdminApp() {
           {/* ── Vista: Servicios/Tratamientos ── */}
           {paginaActual === 'servicios' && (
             <Servicios onToast={setToast} />
+          )}
+
+          {paginaActual === 'pendientes' && (
+            <TratamientosPendientes
+              onToast={(msg) => setToast({
+                mensaje: typeof msg === 'string' ? msg : msg?.mensaje,
+                tipo: 'success',
+              })}
+            />
           )}
 
           {/* ── Vista: Usuarios ── */}

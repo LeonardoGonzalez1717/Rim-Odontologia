@@ -4,11 +4,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Plus, LogOut, Loader2, UserCircle, UserPlus, Contact,
-  Stethoscope, ChevronLeft, Search, X, DollarSign,
+  Stethoscope, ChevronLeft, Search, X, DollarSign, ClipboardList,
 } from 'lucide-react'
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
 import NotaEntregaModal from '../components/NotaEntregaModal'
+import TratamientosPendientes from '../components/TratamientosPendientes'
 import Paginacion from '../components/Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { getDatos, getClientes } from '../api/api'
@@ -445,6 +446,12 @@ const AsistenteVenta = () => {
                 onClick={() => setVista('clientes')}
               />
               <TarjetaOpcion
+                icono={ClipboardList}
+                titulo="Tratamientos pendientes"
+                descripcion="Pacientes con tratamientos pagados que aún no se han realizado."
+                onClick={() => setVista('pendientes')}
+              />
+              <TarjetaOpcion
                 icono={Stethoscope}
                 titulo="Ver Tratamientos"
                 descripcion="Consulta la lista de tratamientos disponibles y sus precios."
@@ -458,6 +465,13 @@ const AsistenteVenta = () => {
           <VistaClientes
             onVolver={() => setVista('inicio')}
             onNuevoCliente={abrirNuevoCliente}
+            onToast={(msg) => setToast({ mensaje: msg })}
+          />
+        )}
+
+        {vista === 'pendientes' && (
+          <TratamientosPendientes
+            onVolver={() => setVista('inicio')}
             onToast={(msg) => setToast({ mensaje: msg })}
           />
         )}

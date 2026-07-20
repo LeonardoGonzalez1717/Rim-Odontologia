@@ -107,6 +107,10 @@ try {
         $lineasNormalizadas[] = [
             'servicio_id' => $servicioId,
             'precio'      => $precio,
+            // true por defecto: se realiza hoy. false = pendiente → saldo a favor
+            'realizado'   => array_key_exists('realizado', $linea)
+                ? (!empty($linea['realizado']) ? 1 : 0)
+                : 1,
         ];
     }
 
@@ -180,8 +184,8 @@ try {
     $nuevoId = (int) $pdo->lastInsertId();
 
     $stmtDetalle = $pdo->prepare(
-        "INSERT INTO venta_detalles (venta_id, servicio_id, precio)
-         VALUES (:venta_id, :servicio_id, :precio)"
+        "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado)
+         VALUES (:venta_id, :servicio_id, :precio, :realizado)"
     );
 
     foreach ($lineasNormalizadas as $linea) {
@@ -189,6 +193,7 @@ try {
             ':venta_id'    => $nuevoId,
             ':servicio_id' => $linea['servicio_id'],
             ':precio'      => $linea['precio'],
+            ':realizado'   => $linea['realizado'],
         ]);
     }
 

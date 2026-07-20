@@ -17,7 +17,7 @@ import {
   CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle,
   ChevronDown, ChevronUp, Banknote,
 } from 'lucide-react'
-import { registrarVenta, getDeudaCasheaCliente, registrarAbonoCashea } from '../api/api'
+import { registrarVenta, getDeudaCasheaCliente, registrarAbonoCashea, getSaldoFavorCliente } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
@@ -35,11 +35,11 @@ const PORCENTAJE_INICIAL_CASHEA = 0.4
 const calcularMontoCajaCashea = (total) =>
   Math.round(total * PORCENTAJE_INICIAL_CASHEA * 100) / 100
 
-const estadoInicial = {
+const crearEstadoInicial = () => ({
   cliente_id: '',
   doctor_id: '',
   fecha_venta: getFechaHoraActual(),
-}
+})
 
 const RegistrarVentaModal = ({
   onClose,
@@ -50,7 +50,7 @@ const RegistrarVentaModal = ({
   clientes = [],
   onRecargarClientes,
 }) => {
-  const [form, setForm] = useState(estadoInicial)
+  const [form, setForm] = useState(crearEstadoInicial)
   const [servicioSeleccionado, setServicioSeleccionado] = useState('')
   const [lineas, setLineas] = useState([])
   const [loading, setLoading] = useState(false)
@@ -76,6 +76,11 @@ const RegistrarVentaModal = ({
   const [exitoAbono, setExitoAbono]     = useState(false)
   const [errorAbono, setErrorAbono]     = useState('')
   const [ventaAbonoId, setVentaAbonoId] = useState('')  // venta_id elegida para el abono
+
+  // ── Saldo a favor (tratamientos pendientes del cliente) ──
+  const [mostrarTratamientosFavor, setMostrarTratamientosFavor] = useState(false)
+  const [tratamientosFavor, setTratamientosFavor] = useState([])
+  const [loadingTratamientosFavor, setLoadingTratamientosFavor] = useState(false)
 
   const primerCampoRef = useRef(null)
   const casheaSectionRef = useRef(null)
@@ -161,6 +166,32 @@ const RegistrarVentaModal = ({
     }
   }, [form.cliente_id, clienteTieneDeuda, cargarDeuda])
 
+  // Al cambiar de cliente, ocultar el detalle de tratamientos pendientes
+  useEffect(() => {
+    setMostrarTratamientosFavor(false)
+    setTratamientosFavor([])
+  }, [form.cliente_id])
+
+  const handleVerTratamientosFavor = async () => {
+    if (mostrarTratamientosFavor) {
+      setMostrarTratamientosFavor(false)
+      return
+    }
+    if (!form.cliente_id) return
+    setMostrarTratamientosFavor(true)
+    if (tratamientosFavor.length > 0) return
+    setLoadingTratamientosFavor(true)
+    try {
+      const data = await getSaldoFavorCliente(form.cliente_id)
+      setTratamientosFavor(data.tratamientos ?? [])
+    } catch (err) {
+      console.error('Error al cargar tratamientos pendientes:', err)
+      setTratamientosFavor([])
+    } finally {
+      setLoadingTratamientosFavor(false)
+    }
+  }
+
   useEffect(() => {
     if (cashea && total > 0 && !montoCasheaEditado) {
       setMontoCashea(montoSugeridoCashea.toFixed(2))
@@ -210,15 +241,27 @@ const RegistrarVentaModal = ({
         servicio_id: servicio.id,
         nombre: servicio.nombre_servicio,
         precio: parseFloat(servicio.precio),
+        realizado: true, // se realiza hoy; si se desmarca → saldo a favor
       },
     ])
     setServicioSeleccionado('')
+  }
+
+  const handleToggleRealizado = (key) => {
+    setError('')
+    setLineas((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, realizado: !l.realizado } : l)),
+    )
   }
 
   const handleQuitarLinea = (key) => {
     setError('')
     setLineas((prev) => prev.filter((l) => l.key !== key))
   }
+
+  const clienteSaldoFavor = clienteSeleccionado?.saldo_a_favor ?? 0
+  const clienteTieneSaldoFavor = clienteSeleccionado?.tiene_saldo_a_favor === true
+    || clienteSaldoFavor > 0.001
 
   const validar = () => {
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
@@ -257,7 +300,10 @@ const RegistrarVentaModal = ({
     setError('')
 
     try {
-      const fechaFormateada = form.fecha_venta.replace('T', ' ') + ':00'
+      // Al guardar, usar siempre la hora actual del momento del registro
+      const fechaActual = getFechaHoraActual()
+      setForm((prev) => ({ ...prev, fecha_venta: fechaActual }))
+      const fechaFormateada = fechaActual.replace('T', ' ') + ':00'
 
       const res = await registrarVenta({
         cliente_id: parseInt(form.cliente_id),
@@ -270,6 +316,7 @@ const RegistrarVentaModal = ({
         servicios: lineas.map((l) => ({
           servicio_id: l.servicio_id,
           precio: l.precio,
+          realizado: l.realizado !== false,
         })),
       })
 
@@ -288,7 +335,7 @@ const RegistrarVentaModal = ({
       setExito(true)
       setTimeout(() => {
         setExito(false)
-        setForm({ ...estadoInicial, fecha_venta: getFechaHoraActual() })
+        setForm(crearEstadoInicial())
         setLineas([])
         setServicioSeleccionado('')
         setCashea(false)
@@ -441,6 +488,57 @@ const RegistrarVentaModal = ({
               </button>
             </div>
           </div>
+
+          {/* ── Aviso saldo a favor del cliente ── */}
+          {form.cliente_id && clienteTieneSaldoFavor && (
+            <div className="space-y-2 animate-slide-up">
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5
+                              bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+                <span className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 size={13} className="flex-shrink-0 text-emerald-600" />
+                  <span>
+                    Este cliente tiene saldo a favor:{' '}
+                    <span className="font-semibold">${clienteSaldoFavor.toFixed(2)}</span>
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleVerTratamientosFavor}
+                  className="flex-shrink-0 text-emerald-700 font-semibold hover:text-emerald-900
+                             underline underline-offset-2 transition-colors"
+                >
+                  {mostrarTratamientosFavor ? 'Ocultar' : 'Ver tratamientos'}
+                </button>
+              </div>
+
+              {mostrarTratamientosFavor && (
+                <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 space-y-2">
+                  {loadingTratamientosFavor ? (
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" />
+                      Cargando tratamientos…
+                    </p>
+                  ) : tratamientosFavor.length === 0 ? (
+                    <p className="text-xs text-slate-400">No hay tratamientos pendientes.</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {tratamientosFavor.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-700 truncate">{t.nombre}</p>
+                            <p className="text-slate-400 mt-0.5">{formatearDMAa(t.fecha)}</p>
+                          </div>
+                          <span className="font-semibold text-emerald-700 whitespace-nowrap">
+                            ${Number(t.precio).toFixed(2)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Aviso + toggle de modo (sólo si cliente tiene deuda) ── */}
           {form.cliente_id && clienteTieneDeuda && (
@@ -670,20 +768,40 @@ const RegistrarVentaModal = ({
                 {lineas.map((linea) => (
                   <li
                     key={linea.key}
-                    className="flex items-center justify-between gap-3 bg-slate-50
-                               border border-slate-100 rounded-xl px-3 py-2.5"
+                    className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3
+                               border rounded-xl px-3 py-2.5 transition-colors
+                               ${linea.realizado
+                                 ? 'bg-slate-50 border-slate-100'
+                                 : 'bg-emerald-50/70 border-emerald-200'}`}
                   >
-                    <span className="text-sm text-slate-700 flex-1 leading-tight">
-                      {linea.nombre}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
-                      ${linea.precio.toFixed(2)}
-                    </span>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-sm text-slate-700 flex-1 leading-tight">
+                        {linea.nombre}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
+                        ${linea.precio.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer whitespace-nowrap
+                                      select-none sm:ml-auto">
+                      <input
+                        type="checkbox"
+                        checked={linea.realizado !== false}
+                        onChange={() => handleToggleRealizado(linea.key)}
+                        className="w-4 h-4 rounded border-slate-300 text-pink-600
+                                   focus:ring-pink-500 cursor-pointer"
+                      />
+                      <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
+                        {linea.realizado === false ? 'Otro día' : 'Se realiza hoy'}
+                      </span>
+                    </label>
+
                     <button
                       type="button"
                       onClick={() => handleQuitarLinea(linea.key)}
                       className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50
-                                 flex items-center justify-center transition-colors"
+                                 flex items-center justify-center transition-colors self-end sm:self-center"
                       aria-label={`Quitar ${linea.nombre}`}
                     >
                       <Trash2 size={15} />

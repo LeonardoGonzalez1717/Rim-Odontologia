@@ -430,6 +430,26 @@ export async function getDeudaCasheaCliente(clienteId) {
   return apiFetch(`${API_BASE}/deuda_cashea_cliente.php?cliente_id=${encodeURIComponent(clienteId)}`)
 }
 
+// GET /api/saldo_favor_cliente.php?cliente_id=X
+// Tratamientos pagados pendientes de realizar (saldo a favor)
+export async function getSaldoFavorCliente(clienteId) {
+  return apiFetch(`${API_BASE}/saldo_favor_cliente.php?cliente_id=${encodeURIComponent(clienteId)}`)
+}
+
+// GET /api/tratamientos_pendientes.php — Todos los tratamientos pendientes (saldo a favor)
+export async function getTratamientosPendientes() {
+  return apiFetch(`${API_BASE}/tratamientos_pendientes.php`)
+}
+
+// PATCH /api/tratamientos_pendientes.php — Marca un detalle como realizado
+// @param {number} id — ID de venta_detalles
+export async function marcarTratamientoRealizado(id) {
+  return apiFetch(`${API_BASE}/tratamientos_pendientes.php`, {
+    method: 'PATCH',
+    body: JSON.stringify({ id }),
+  })
+}
+
 // POST /api/ajustes_cashea.php — Registra un abono de deuda Cashea vinculado a una venta
 // @param {{ monto: number, concepto: string, fecha_ingreso?: string }} datos
 export async function registrarAbonoCashea(datos) {
