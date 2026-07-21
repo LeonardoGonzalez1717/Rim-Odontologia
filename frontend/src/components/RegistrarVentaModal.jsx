@@ -13,14 +13,14 @@
 // =============================================================================
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
-  X, Save, User, Stethoscope, Calendar, DollarSign, Loader2,
-  CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle,
-  ChevronDown, ChevronUp, Banknote,
+  X, Save, User, Stethoscope, Calendar, Loader2,
+  CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle, Banknote,
 } from 'lucide-react'
 import { registrarVenta, getDeudaCasheaCliente, registrarAbonoCashea, getSaldoFavorCliente } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
+import DoctorSelect from './DoctorSelect'
 import ServicioSelect from './ServicioSelect'
 
 const getFechaHoraActual = () => {
@@ -57,7 +57,7 @@ const RegistrarVentaModal = ({
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
-  const [cashea, setCashea] = useState(false)
+  // montoCashea = cuota inicial de la PARTE financiada (no incluye contado)
   const [montoCashea, setMontoCashea] = useState('')
   const [montoCasheaEditado, setMontoCasheaEditado] = useState(false)
   const [descripcionCashea, setDescripcionCashea] = useState('')
@@ -68,7 +68,6 @@ const RegistrarVentaModal = ({
   // ── Estado de deuda Cashea del cliente seleccionado ──
   const [deudaInfo, setDeudaInfo]           = useState(null)  // null | { deuda_total, ventas_cashea }
   const [loadingDeuda, setLoadingDeuda]     = useState(false)
-  const [deudaExpandida, setDeudaExpandida] = useState(true)
   // ── Formulario de pago de deuda ──
   const [montoAbono, setMontoAbono]     = useState('')
   const [descripcionAbono, setDescripcionAbono] = useState('')
@@ -85,21 +84,61 @@ const RegistrarVentaModal = ({
   const primerCampoRef = useRef(null)
   const casheaSectionRef = useRef(null)
   const deudaSectionRef = useRef(null)
+  const descripcionRef = useRef(null)
+
+  const DESC_MAX_ALTURA_PX = 160
+
+  const ajustarAlturaDescripcion = useCallback(() => {
+    const el = descripcionRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, DESC_MAX_ALTURA_PX)}px`
+    el.style.overflowY = el.scrollHeight > DESC_MAX_ALTURA_PX ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    ajustarAlturaDescripcion()
+  }, [descripcionCashea, ajustarAlturaDescripcion])
 
   const total = useMemo(
     () => lineas.reduce((sum, l) => sum + l.precio, 0),
     [lineas],
   )
 
-  const montoCaja = useMemo(() => {
-    if (!cashea) return total
+  const totalCashea = useMemo(
+    () => lineas.filter((l) => l.cashea).reduce((sum, l) => sum + l.precio, 0),
+    [lineas],
+  )
+
+  const totalContado = useMemo(
+    () => lineas.filter((l) => !l.cashea).reduce((sum, l) => sum + l.precio, 0),
+    [lineas],
+  )
+
+  const tieneCashea = totalCashea > 0.001
+
+  const todosCashea = lineas.length > 0 && lineas.every((l) => l.cashea)
+
+  const montoInicialCashea = useMemo(() => {
+    if (!tieneCashea) return 0
     const monto = parseFloat(montoCashea)
     return Number.isFinite(monto) ? monto : 0
-  }, [cashea, montoCashea, total])
+  }, [tieneCashea, montoCashea])
+
+  // En caja hoy = contado completo + cuota inicial Cashea
+  const montoCaja = useMemo(() => {
+    if (!tieneCashea) return total
+    return Math.round((totalContado + montoInicialCashea) * 100) / 100
+  }, [tieneCashea, total, totalContado, montoInicialCashea])
 
   const montoSugeridoCashea = useMemo(
-    () => (total > 0 ? calcularMontoCajaCashea(total) : 0),
-    [total],
+    () => (totalCashea > 0 ? calcularMontoCajaCashea(totalCashea) : 0),
+    [totalCashea],
+  )
+
+  const deudaEstimada = useMemo(
+    () => (tieneCashea ? Math.max(0, Math.round((totalCashea - montoInicialCashea) * 100) / 100) : 0),
+    [tieneCashea, totalCashea, montoInicialCashea],
   )
 
   // Cliente seleccionado con su info de deuda
@@ -193,18 +232,22 @@ const RegistrarVentaModal = ({
   }
 
   useEffect(() => {
-    if (cashea && total > 0 && !montoCasheaEditado) {
+    if (tieneCashea && totalCashea > 0 && !montoCasheaEditado) {
       setMontoCashea(montoSugeridoCashea.toFixed(2))
     }
-  }, [cashea, total, montoSugeridoCashea, montoCasheaEditado])
+    if (!tieneCashea) {
+      setMontoCashea('')
+      setMontoCasheaEditado(false)
+    }
+  }, [tieneCashea, totalCashea, montoSugeridoCashea, montoCasheaEditado])
 
   useEffect(() => {
-    if (!cashea) return
+    if (!tieneCashea) return
     const timer = setTimeout(() => {
       casheaSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }, 100)
     return () => clearTimeout(timer)
-  }, [cashea])
+  }, [tieneCashea])
 
   useEffect(() => {
     primerCampoRef.current?.focus()
@@ -242,6 +285,7 @@ const RegistrarVentaModal = ({
         nombre: servicio.nombre_servicio,
         precio: parseFloat(servicio.precio),
         realizado: true, // se realiza hoy; si se desmarca → saldo a favor
+        cashea: false,   // contado por defecto; se marca para financiar
       },
     ])
     setServicioSeleccionado('')
@@ -254,8 +298,24 @@ const RegistrarVentaModal = ({
     )
   }
 
+  const handleToggleCasheaLinea = (key) => {
+    setError('')
+    setMontoCasheaEditado(false)
+    setLineas((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, cashea: !l.cashea } : l)),
+    )
+  }
+
+  const handleToggleTodosCashea = () => {
+    setError('')
+    setMontoCasheaEditado(false)
+    const activar = !todosCashea
+    setLineas((prev) => prev.map((l) => ({ ...l, cashea: activar })))
+  }
+
   const handleQuitarLinea = (key) => {
     setError('')
+    setMontoCasheaEditado(false)
     setLineas((prev) => prev.filter((l) => l.key !== key))
   }
 
@@ -269,16 +329,13 @@ const RegistrarVentaModal = ({
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
     if (!form.fecha_venta) return 'Por favor, indica la fecha y hora.'
     if (total <= 0) return 'El monto debe ser mayor a $0.'
-    if (cashea) {
+    if (tieneCashea) {
       const monto = parseFloat(montoCashea)
       if (!montoCashea || !Number.isFinite(monto) || monto <= 0) {
-        return 'Indica el monto inicial que ingresa a caja.'
+        return 'Indica el monto inicial de Cashea que ingresa a caja.'
       }
-      if (monto > total) {
-        return 'El monto inicial no puede ser mayor al total de la venta.'
-      }
-      if (!descripcionCashea.trim()) {
-        return 'Indica una descripción para la venta con Cashea.'
+      if (monto > totalCashea + 0.001) {
+        return 'El monto inicial de Cashea no puede ser mayor al total financiado.'
       }
       if (descripcionCashea.trim().length > 500) {
         return 'La descripción no puede superar 500 caracteres.'
@@ -310,13 +367,17 @@ const RegistrarVentaModal = ({
         doctor_id: parseInt(form.doctor_id),
         fecha_venta: fechaFormateada,
         total,
-        cashea,
+        cashea: tieneCashea,
         monto_caja: montoCaja,
-        descripcion_cashea: cashea ? descripcionCashea.trim() : null,
+        monto_caja_cashea: tieneCashea ? montoInicialCashea : null,
+        descripcion_cashea: tieneCashea && descripcionCashea.trim()
+          ? descripcionCashea.trim()
+          : null,
         servicios: lineas.map((l) => ({
           servicio_id: l.servicio_id,
           precio: l.precio,
           realizado: l.realizado !== false,
+          cashea: !!l.cashea,
         })),
       })
 
@@ -328,7 +389,14 @@ const RegistrarVentaModal = ({
         doctor: doctor?.nombre,
         fecha_venta: fechaFormateada,
         total,
-        servicios: lineas.map((l) => ({ nombre: l.nombre, precio: l.precio })),
+        cashea: tieneCashea,
+        monto_caja: montoCaja,
+        servicios: lineas.map((l) => ({
+          nombre: l.nombre,
+          precio: l.precio,
+          cashea: !!l.cashea,
+          realizado: l.realizado !== false,
+        })),
         estado: 'completada',
       }
 
@@ -338,7 +406,6 @@ const RegistrarVentaModal = ({
         setForm(crearEstadoInicial())
         setLineas([])
         setServicioSeleccionado('')
-        setCashea(false)
         setMontoCashea('')
         setMontoCasheaEditado(false)
         setDescripcionCashea('')
@@ -418,7 +485,7 @@ const RegistrarVentaModal = ({
       className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-scale-in">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-scale-in">
 
         <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div>
@@ -457,36 +524,47 @@ const RegistrarVentaModal = ({
             </div>
           )}
 
-          {/* ── Selector de Cliente ── */}
-          <div>
-            <label htmlFor="cliente_id" className="form-label">
-              <Contact size={14} className="inline mr-1.5 text-pink-500" />
-              Cliente
-            </label>
-            <div className="flex gap-2">
-              <div className="flex-1 min-w-0">
-                <ClienteSelect
-                  id="cliente_id"
-                  clientes={clientes}
-                  value={form.cliente_id}
+          {/* ── Cliente + Doctor ── */}
+          <div className={`grid grid-cols-1 gap-4 ${
+            (!clienteTieneDeuda || !modoAbono) ? 'sm:grid-cols-2' : ''
+          }`}>
+            <div className="min-w-0">
+              <label htmlFor="cliente_id" className="form-label">
+                <Contact size={14} className="inline mr-1.5 text-pink-500" />
+                Cliente
+              </label>
+              <ClienteSelect
+                id="cliente_id"
+                clientes={clientes}
+                value={form.cliente_id}
+                onChange={(val) => {
+                  setError('')
+                  setForm((prev) => ({ ...prev, cliente_id: val }))
+                }}
+                placeholder="Buscar por cédula o nombre…"
+                inputRef={primerCampoRef}
+                onNuevoCliente={() => setModalClienteAbierto(true)}
+              />
+            </div>
+
+            {(!clienteTieneDeuda || !modoAbono) && (
+              <div className="min-w-0">
+                <label htmlFor="doctor_id" className="form-label">
+                  <User size={14} className="inline mr-1.5 text-pink-500" />
+                  Doctor
+                </label>
+                <DoctorSelect
+                  id="doctor_id"
+                  doctores={doctores}
+                  value={form.doctor_id}
                   onChange={(val) => {
                     setError('')
-                    setForm((prev) => ({ ...prev, cliente_id: val }))
+                    setForm((prev) => ({ ...prev, doctor_id: val }))
                   }}
-                  placeholder="Buscar por cédula o nombre…"
-                  inputRef={primerCampoRef}
+                  placeholder="Buscar doctor…"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setModalClienteAbierto(true)}
-                className="btn-secondary flex items-center gap-1.5 px-3 whitespace-nowrap"
-                title="Registrar nuevo cliente"
-              >
-                <Plus size={16} />
-                Nuevo
-              </button>
-            </div>
+            )}
           </div>
 
           {/* ── Aviso saldo a favor del cliente ── */}
@@ -551,7 +629,6 @@ const RegistrarVentaModal = ({
                   <span className="font-semibold">— ${deudaInfo.deuda_total.toFixed(2)}</span>
                 )}
               </span>
-              {/* Toggle pill */}
               <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
                 <button
                   type="button"
@@ -576,8 +653,6 @@ const RegistrarVentaModal = ({
           {/* ── Panel de deuda — sólo en modo abono ── */}
           {form.cliente_id && clienteTieneDeuda && modoAbono && (
             <div ref={deudaSectionRef} className="space-y-3 animate-slide-up">
-
-              {/* Cargando */}
               {loadingDeuda && (
                 <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
                   <Loader2 size={12} className="animate-spin" />
@@ -585,7 +660,6 @@ const RegistrarVentaModal = ({
                 </div>
               )}
 
-              {/* Formulario de abono */}
               {!loadingDeuda && deudaInfo && deudaInfo.ventas_cashea.length > 0 && (
                 <>
                   <div>
@@ -611,9 +685,7 @@ const RegistrarVentaModal = ({
                         </span>
                         <span className="text-green-700">
                           Ya pagado:{' '}
-                          <span className="font-semibold">
-                            ${montoYaPagado.toFixed(2)}
-                          </span>
+                          <span className="font-semibold">${montoYaPagado.toFixed(2)}</span>
                         </span>
                         <span className="text-amber-700">
                           Pendiente:{' '}
@@ -625,7 +697,6 @@ const RegistrarVentaModal = ({
                     )}
                   </div>
 
-                  {/* Monto del abono */}
                   <div>
                     <label className="form-label">Monto del abono ($)</label>
                     <div className="relative">
@@ -642,7 +713,6 @@ const RegistrarVentaModal = ({
                     </div>
                   </div>
 
-                  {/* Descripción del abono */}
                   <div>
                     <label htmlFor="descripcion_abono" className="form-label">
                       Descripción
@@ -658,7 +728,6 @@ const RegistrarVentaModal = ({
                     />
                   </div>
 
-                  {/* Error / éxito del abono */}
                   {errorAbono && (
                     <p className="text-xs text-red-600 flex items-center gap-1">
                       <X size={12} /> {errorAbono}
@@ -694,7 +763,6 @@ const RegistrarVentaModal = ({
                 </>
               )}
 
-              {/* Deuda saldada / sin ventas pendientes */}
               {!loadingDeuda && (!deudaInfo || deudaInfo.ventas_cashea.length === 0) && (
                 <p className="text-xs text-slate-500 flex items-center gap-1.5">
                   <CheckCircle2 size={13} className="text-green-500" />
@@ -710,36 +778,13 @@ const RegistrarVentaModal = ({
           {(!clienteTieneDeuda || !modoAbono) && (
           <>
 
-          {/* ── Doctor ── */}
-          <div>
-            <label htmlFor="doctor_id" className="form-label">
-              <User size={14} className="inline mr-1.5 text-pink-500" />
-              Doctor
-            </label>
-            <select
-              id="doctor_id"
-              name="doctor_id"
-              value={form.doctor_id}
-              onChange={handleChange}
-              className="form-input"
-              required
-            >
-              <option value="">— Selecciona un doctor —</option>
-              {doctores.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.nombre} · {d.especialidad}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* ── Tratamientos ── */}
+          {/* ── Tratamientos (selector en una sola fila) ── */}
           <div>
             <label htmlFor="servicio_add" className="form-label">
               <Stethoscope size={14} className="inline mr-1.5 text-pink-500" />
               Tratamientos
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-stretch">
               <div className="flex-1 min-w-0">
                 <ServicioSelect
                   id="servicio_add"
@@ -764,51 +809,80 @@ const RegistrarVentaModal = ({
             </div>
 
             {lineas.length > 0 ? (
-              <ul className="mt-3 space-y-2">
-                {lineas.map((linea) => (
-                  <li
-                    key={linea.key}
-                    className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3
-                               border rounded-xl px-3 py-2.5 transition-colors
-                               ${linea.realizado
-                                 ? 'bg-slate-50 border-slate-100'
-                                 : 'bg-emerald-50/70 border-emerald-200'}`}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className="text-sm text-slate-700 flex-1 leading-tight">
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-600
+                                  cursor-pointer select-none px-1">
+                  <input
+                    type="checkbox"
+                    checked={todosCashea}
+                    onChange={handleToggleTodosCashea}
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600
+                               focus:ring-amber-500 cursor-pointer"
+                  />
+                  <CreditCard size={12} className="text-amber-600" />
+                  Todos con Cashea
+                </label>
+
+                <ul className="space-y-2">
+                  {lineas.map((linea) => (
+                    <li
+                      key={linea.key}
+                      className={`flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3
+                                 border rounded-xl px-3 py-2.5 transition-colors
+                                 ${linea.cashea
+                                   ? 'bg-amber-50/70 border-amber-200'
+                                   : linea.realizado === false
+                                     ? 'bg-emerald-50/70 border-emerald-200'
+                                     : 'bg-slate-50 border-slate-100'}`}
+                    >
+                      <span className="text-sm text-slate-700 flex-1 min-w-[8rem] leading-tight">
                         {linea.nombre}
                       </span>
                       <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
                         ${linea.precio.toFixed(2)}
                       </span>
-                    </div>
 
-                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer whitespace-nowrap
-                                      select-none sm:ml-auto">
-                      <input
-                        type="checkbox"
-                        checked={linea.realizado !== false}
-                        onChange={() => handleToggleRealizado(linea.key)}
-                        className="w-4 h-4 rounded border-slate-300 text-pink-600
-                                   focus:ring-pink-500 cursor-pointer"
-                      />
-                      <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
-                        {linea.realizado === false ? 'Otro día' : 'Se realiza hoy'}
-                      </span>
-                    </label>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer
+                                        whitespace-nowrap select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!linea.cashea}
+                          onChange={() => handleToggleCasheaLinea(linea.key)}
+                          className="w-4 h-4 rounded border-slate-300 text-amber-600
+                                     focus:ring-amber-500 cursor-pointer"
+                        />
+                        <span className={linea.cashea ? 'text-amber-800 font-medium' : ''}>
+                          Cashea
+                        </span>
+                      </label>
 
-                    <button
-                      type="button"
-                      onClick={() => handleQuitarLinea(linea.key)}
-                      className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50
-                                 flex items-center justify-center transition-colors self-end sm:self-center"
-                      aria-label={`Quitar ${linea.nombre}`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer
+                                        whitespace-nowrap select-none">
+                        <input
+                          type="checkbox"
+                          checked={linea.realizado !== false}
+                          onChange={() => handleToggleRealizado(linea.key)}
+                          className="w-4 h-4 rounded border-slate-300 text-pink-600
+                                     focus:ring-pink-500 cursor-pointer"
+                        />
+                        <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
+                          {linea.realizado === false ? 'Otro día' : 'Hoy'}
+                        </span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuitarLinea(linea.key)}
+                        className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50
+                                   flex items-center justify-center transition-colors flex-shrink-0"
+                        aria-label={`Quitar ${linea.nombre}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
               <p className="text-xs text-slate-400 mt-2">
                 Agrega los tratamientos incluidos en esta venta.
@@ -816,137 +890,29 @@ const RegistrarVentaModal = ({
             )}
           </div>
 
-          {/* ── Total ── */}
+          {/* ── Descripción (opcional) ── */}
           <div>
-            <label htmlFor="total" className="form-label">
-              <DollarSign size={14} className="inline mr-1.5 text-pink-500" />
-              Total de la venta ($)
-              {lineas.length > 0 && (
-                <span className="ml-2 text-xs text-pink-600 font-normal">
-                  {lineas.length} {lineas.length === 1 ? 'tratamiento' : 'tratamientos'}
-                </span>
-              )}
+            <label htmlFor="descripcion_cashea" className="form-label">
+              Descripción
+              <span className="ml-1.5 text-xs font-normal text-slate-400">(opcional)</span>
             </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
-                $
-              </span>
-              <input
-                id="total"
-                type="text"
-                value={total > 0 ? total.toFixed(2) : ''}
-                readOnly
-                placeholder="0.00"
-                className="form-input pl-8 cursor-not-allowed bg-slate-100"
-              />
-            </div>
-          </div>
-
-          {/* ── Pago con Cashea ── */}
-          <div className="space-y-3">
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={cashea}
-                onChange={(e) => {
-                  setError('')
-                  const activo = e.target.checked
-                  setCashea(activo)
-                  if (activo) {
-                    setMontoCasheaEditado(false)
-                    if (total > 0) {
-                      setMontoCashea(calcularMontoCajaCashea(total).toFixed(2))
-                    }
-                  } else {
-                    setMontoCashea('')
-                    setMontoCasheaEditado(false)
-                    setDescripcionCashea('')
-                  }
-                }}
-                className="mt-1 w-4 h-4 rounded border-slate-300 text-pink-600
-                           focus:ring-pink-500 cursor-pointer"
-              />
-              <div>
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 group-hover:text-slate-900">
-                  <CreditCard size={14} className="text-pink-500" />
-                  Pago con Cashea
-                </span>
-                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                  Financiamiento: por defecto el 40% del total ingresa a caja (puedes ajustarlo).
-                </p>
-              </div>
-            </label>
-
-            {cashea && (
-              <div
-                ref={casheaSectionRef}
-                className="ml-7 p-4 bg-amber-50 border border-amber-200 rounded-xl
-                           animate-slide-up space-y-4"
-              >
-                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
-                  Datos del financiamiento Cashea
-                </p>
-
-                <div>
-                  <label htmlFor="descripcion_cashea" className="form-label">
-                    Descripción Cashea
-                    <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
-                  </label>
-                  <textarea
-                    id="descripcion_cashea"
-                    value={descripcionCashea}
-                    onChange={(e) => {
-                      setError('')
-                      setDescripcionCashea(e.target.value)
-                    }}
-                    placeholder="Ej: Plan de cuotas acordado, referencia del financiamiento…"
-                    rows={3}
-                    maxLength={500}
-                    className="form-input resize-none bg-white"
-                    required
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Obligatorio · {descripcionCashea.length}/500 caracteres
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="monto_cashea" className="form-label">
-                    Monto inicial en caja ($)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
-                      $
-                    </span>
-                    <input
-                      id="monto_cashea"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      max={total > 0 ? total : undefined}
-                      value={montoCashea}
-                      onChange={(e) => {
-                        setError('')
-                        setMontoCasheaEditado(true)
-                        setMontoCashea(e.target.value)
-                      }}
-                      placeholder="0.00"
-                      className="form-input pl-8 bg-white"
-                    />
-                  </div>
-                  {total > 0 && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      Sugerido (40%): ${montoSugeridoCashea.toFixed(2)} · Total venta: ${total.toFixed(2)}
-                    </p>
-                  )}
-                  {total > 0 && montoCaja > 0 && (
-                    <p className="text-xs text-pink-600 font-medium mt-1">
-                      Ingresa a caja hoy: ${montoCaja.toFixed(2)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+            <textarea
+              ref={descripcionRef}
+              id="descripcion_cashea"
+              value={descripcionCashea}
+              onChange={(e) => {
+                setError('')
+                setDescripcionCashea(e.target.value)
+              }}
+              placeholder="Notas de la venta o del financiamiento Cashea…"
+              rows={2}
+              maxLength={500}
+              className="form-input resize-none overflow-hidden"
+              style={{ maxHeight: DESC_MAX_ALTURA_PX }}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              {descripcionCashea.length}/500 caracteres
+            </p>
           </div>
 
           {/* ── Fecha ── */}
@@ -964,6 +930,97 @@ const RegistrarVentaModal = ({
               className="form-input"
               required
             />
+          </div>
+
+          {/* ── Contado / Cashea / Total ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                Contado
+              </p>
+              <p className="text-lg font-bold text-slate-800">
+                ${totalContado.toFixed(2)}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1">Entra completo a caja</p>
+            </div>
+
+            <div
+              ref={casheaSectionRef}
+              className={`rounded-xl border px-3 py-3 ${
+                tieneCashea
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+            >
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
+                tieneCashea ? 'text-amber-700' : 'text-slate-400'
+              }`}>
+                Cashea
+              </p>
+              <p className={`text-lg font-bold ${tieneCashea ? 'text-amber-800' : 'text-slate-400'}`}>
+                ${totalCashea.toFixed(2)}
+              </p>
+              {tieneCashea ? (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label htmlFor="monto_cashea" className="text-[11px] font-medium text-amber-800">
+                      Cuota inicial en caja
+                    </label>
+                    <div className="relative mt-0.5">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">
+                        $
+                      </span>
+                      <input
+                        id="monto_cashea"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        max={totalCashea > 0 ? totalCashea : undefined}
+                        value={montoCashea}
+                        onChange={(e) => {
+                          setError('')
+                          setMontoCasheaEditado(true)
+                          setMontoCashea(e.target.value)
+                        }}
+                        placeholder="0.00"
+                        className="form-input pl-6 py-1.5 text-sm bg-white"
+                      />
+                    </div>
+                    <p className="text-[10px] text-amber-700/80 mt-1">
+                      Sugerido 40%: ${montoSugeridoCashea.toFixed(2)}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-orange-700">
+                    Deuda: <span className="font-semibold">${deudaEstimada.toFixed(2)}</span>
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Marca tratamientos con Cashea
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-pink-200 bg-pink-50 px-3 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-pink-600 mb-1">
+                Total venta
+                {lineas.length > 0 && (
+                  <span className="ml-1 font-normal normal-case tracking-normal text-pink-500">
+                    ({lineas.length})
+                  </span>
+                )}
+              </p>
+              <p className="text-lg font-bold text-pink-800">
+                ${total > 0 ? total.toFixed(2) : '0.00'}
+              </p>
+              {tieneCashea ? (
+                <p className="text-[11px] text-pink-700 mt-1 font-medium">
+                  Caja hoy: ${montoCaja.toFixed(2)}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-500 mt-1">Pago completo</p>
+              )}
+            </div>
           </div>
 
           </>

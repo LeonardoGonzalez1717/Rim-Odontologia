@@ -111,6 +111,8 @@ try {
             'realizado'   => array_key_exists('realizado', $linea)
                 ? (!empty($linea['realizado']) ? 1 : 0)
                 : 1,
+            // Cashea por línea (permite pago mixto contado + Cashea)
+            'cashea'      => !empty($linea['cashea']) ? 1 : 0,
         ];
     }
 
@@ -132,36 +134,65 @@ try {
         exit;
     }
 
-    $cashea = !empty($datos['cashea']);
-    $montoCaja = isset($datos['monto_caja']) ? (float) $datos['monto_caja'] : $total;
+    $totalCashea = 0.0;
+    $totalContado = 0.0;
+    foreach ($lineasNormalizadas as $linea) {
+        if ($linea['cashea']) {
+            $totalCashea += $linea['precio'];
+        } else {
+            $totalContado += $linea['precio'];
+        }
+    }
+
+    // Flag de cabecera: hay Cashea si alguna línea lo marca
+    // (también acepta cashea=true a nivel venta por compatibilidad)
+    $cashea = $totalCashea > 0.001 || !empty($datos['cashea']);
+
+    // Si mandaron cashea a nivel venta sin marcar líneas, marcar todas
+    if ($cashea && $totalCashea < 0.001) {
+        foreach ($lineasNormalizadas as &$linea) {
+            $linea['cashea'] = 1;
+        }
+        unset($linea);
+        $totalCashea  = $totalCalculado;
+        $totalContado = 0.0;
+    }
 
     $descripcionCashea = null;
+    $montoCaja = $total;
 
     if ($cashea) {
-        if ($montoCaja <= 0) {
+        // monto_caja = contado completo + cuota inicial de la parte Cashea
+        $montoInicialCashea = isset($datos['monto_caja_cashea'])
+            ? (float) $datos['monto_caja_cashea']
+            : (isset($datos['monto_caja'])
+                ? max(0, (float) $datos['monto_caja'] - $totalContado)
+                : round($totalCashea * 0.4, 2));
+
+        if ($montoInicialCashea <= 0) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'Indica el monto inicial que ingresa a caja.']);
+            echo json_encode(['success' => false, 'message' => 'Indica el monto inicial de Cashea que ingresa a caja.']);
             exit;
         }
-        if ($montoCaja > $total + 0.01) {
+        if ($montoInicialCashea > $totalCashea + 0.01) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'El monto inicial no puede ser mayor al total de la venta.']);
+            echo json_encode([
+                'success' => false,
+                'message' => 'El monto inicial de Cashea no puede ser mayor al total financiado.',
+            ]);
             exit;
         }
 
         $descripcionCashea = trim((string) ($datos['descripcion_cashea'] ?? ''));
         if ($descripcionCashea === '') {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'Indica una descripción para la venta con Cashea.']);
-            exit;
-        }
-        if (mb_strlen($descripcionCashea) > 500) {
+            $descripcionCashea = null;
+        } elseif (mb_strlen($descripcionCashea) > 500) {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'La descripción no puede superar 500 caracteres.']);
             exit;
         }
-    } else {
-        $montoCaja = $total;
+
+        $montoCaja = round($totalContado + $montoInicialCashea, 2);
     }
 
     $pdo = obtenerConexion();
@@ -184,8 +215,8 @@ try {
     $nuevoId = (int) $pdo->lastInsertId();
 
     $stmtDetalle = $pdo->prepare(
-        "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado)
-         VALUES (:venta_id, :servicio_id, :precio, :realizado)"
+        "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado, cashea)
+         VALUES (:venta_id, :servicio_id, :precio, :realizado, :cashea)"
     );
 
     foreach ($lineasNormalizadas as $linea) {
@@ -194,6 +225,7 @@ try {
             ':servicio_id' => $linea['servicio_id'],
             ':precio'      => $linea['precio'],
             ':realizado'   => $linea['realizado'],
+            ':cashea'      => $linea['cashea'],
         ]);
     }
 
