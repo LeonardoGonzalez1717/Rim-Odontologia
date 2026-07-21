@@ -3,9 +3,11 @@
 // Select con búsqueda para elegir cliente por cédula o nombre (react-select)
 // Props adicionales:
 //   - clientesConDeuda {Set<string>} — Set de IDs (string) con deuda Cashea activa
+//   - onNuevoCliente   {Function}   — Si se pasa, muestra "Nuevo cliente" al final del menú
 // =============================================================================
-import { useEffect, useMemo, useRef } from 'react'
-import Select from 'react-select'
+import { useEffect, useMemo, useRef, useCallback, useState } from 'react'
+import Select, { components } from 'react-select'
+import { Plus } from 'lucide-react'
 
 const normalizar = (texto) =>
   String(texto || '').toLowerCase().replace(/[\s.-]/g, '')
@@ -50,6 +52,10 @@ const estilos = {
   menuPortal: (base) => ({
     ...base,
     zIndex: 9999,
+  }),
+  menuList: (base) => ({
+    ...base,
+    paddingBottom: 0,
   }),
   option: (base, { isFocused, isSelected }) => ({
     ...base,
@@ -120,6 +126,57 @@ const formatOptionLabel = (opcion, { context }) => {
   )
 }
 
+const MenuListConNuevo = (props) => {
+  const handleNuevo = props.selectProps?.onNuevoCliente
+
+  return (
+    <components.MenuList {...props}>
+      {props.children}
+      {typeof handleNuevo === 'function' && (
+        <div
+          style={{
+            borderTop: '1px solid #e2e8f0',
+            position: 'sticky',
+            bottom: 0,
+            background: '#fff',
+          }}
+        >
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              props.selectProps?.onMenuCloseRequest?.()
+              handleNuevo()
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '12px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#db2777',
+              background: '#fdf2f8',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            Nuevo cliente
+          </button>
+        </div>
+      )}
+    </components.MenuList>
+  )
+}
+
 const ClienteSelect = ({
   id = 'cliente_id',
   clientes = [],
@@ -128,8 +185,10 @@ const ClienteSelect = ({
   placeholder = 'Buscar por cédula o nombre…',
   inputRef = null,
   clientesConDeuda = null, // Set<string> o null
+  onNuevoCliente = null,
 }) => {
   const selectRef = useRef(null)
+  const [menuAbierto, setMenuAbierto] = useState(false)
 
   const opciones = useMemo(
     () =>
@@ -162,6 +221,13 @@ const ClienteSelect = ({
     }
   }, [inputRef])
 
+  const cerrarMenu = useCallback(() => setMenuAbierto(false), [])
+
+  const MenuList = useCallback(
+    (menuProps) => <MenuListConNuevo {...menuProps} />,
+    [],
+  )
+
   return (
     <Select
       ref={selectRef}
@@ -180,6 +246,12 @@ const ClienteSelect = ({
       menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
       menuPosition="fixed"
       classNamePrefix="cliente-select"
+      menuIsOpen={menuAbierto}
+      onMenuOpen={() => setMenuAbierto(true)}
+      onMenuClose={() => setMenuAbierto(false)}
+      components={onNuevoCliente ? { MenuList } : undefined}
+      onNuevoCliente={onNuevoCliente}
+      onMenuCloseRequest={cerrarMenu}
     />
   )
 }

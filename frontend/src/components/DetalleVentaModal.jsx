@@ -77,10 +77,30 @@ const DetalleVentaModal = ({ venta, onClose, mostrarFecha = false }) => {
               {servicios.map((s, i) => (
                 <li
                   key={s.id ?? i}
-                  className="flex items-center justify-between gap-3 bg-slate-50
-                             border border-slate-100 rounded-xl px-3 py-2.5"
+                  className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 border
+                             ${s.cashea
+                               ? 'bg-amber-50/70 border-amber-200'
+                               : 'bg-slate-50 border-slate-100'}`}
                 >
-                  <span className="text-sm text-slate-700">{s.nombre}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm text-slate-700">{s.nombre}</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {s.cashea && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide
+                                         text-amber-800 bg-amber-100 border border-amber-200
+                                         rounded px-1.5 py-0.5">
+                          Cashea
+                        </span>
+                      )}
+                      {s.realizado === false && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide
+                                         text-emerald-800 bg-emerald-100 border border-emerald-200
+                                         rounded px-1.5 py-0.5">
+                          Otro día
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   {s.precio != null && (
                     <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
                       {formatCurrency(s.precio)}
