@@ -7,7 +7,7 @@
 
 const API_BASE = import.meta.env.DEV
   ? '/api'
-  : 'https://rimconsultorio.freedev.app/backend'
+  : 'https://rimconsultorio.com/backend'
 
 // ─── Overlay de carga global ──────────────────────────────────────────────────
 const DEBOUNCE_CARGA_MS = 400
