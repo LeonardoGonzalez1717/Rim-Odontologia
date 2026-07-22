@@ -5,11 +5,7 @@
 -- =============================================================================
 
 -- Crear y seleccionar la base de datos
-CREATE DATABASE IF NOT EXISTS `rim_challouf`
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
 
-USE `rim_challouf`;
 
 -- =============================================================================
 -- TABLA: doctores
