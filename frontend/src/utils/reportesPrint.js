@@ -14,23 +14,30 @@ const esc = (str) => String(str ?? '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
 
+/** SAT 15T: rollo 58 mm, área útil ~48 mm, 203 dpi */
+const PAPEL_ANCHO_MM = 58
+const PAPEL_EXPORT_PX = Math.round(PAPEL_ANCHO_MM * 203 / 25.4)
+
 const PRINT_STYLES = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: system-ui, -apple-system, sans-serif;
-    max-width: 560px;
-    margin: 32px auto;
-    padding: 0 24px;
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: ${PAPEL_ANCHO_MM}mm;
+    width: ${PAPEL_ANCHO_MM}mm;
+    margin: 8px auto;
+    padding: 0 2mm;
     color: #111;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.45;
   }
-  
+
   .brand-header {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 5px;
+    margin-bottom: 10px;
+    text-align: center;
   }
   .brand-logo {
     width: 40px;
@@ -38,88 +45,88 @@ const PRINT_STYLES = `
     object-fit: contain;
   }
   h1 {
-    font-size: 22px;
+    font-size: 16px;
     font-weight: 700;
-    text-align: left;
+    text-align: center;
+    letter-spacing: 0.02em;
   }
 
   .header-info {
     text-align: left;
-    margin-bottom: 24px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 8px;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed #999;
+    padding-bottom: 7px;
   }
-  .header-info p { margin: 4px 0; }
-  
-  /* Contenedor flexible para alinear el título del reporte y la fecha a los extremos */
+  .header-info p { margin: 3px 0; font-size: 12px; }
+
   .report-meta {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    flex-direction: column;
+    gap: 2px;
   }
-  
+
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+    table-layout: fixed;
   }
   th, td {
-    padding: 10px 8px;
+    padding: 4px 3px;
     text-align: left;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px dashed #ccc;
+    font-size: 13px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
   th:last-child, td:last-child { text-align: right; }
-  th { font-weight: 600; border-bottom: 2px solid #111; }
-  
+  th { font-weight: 700; border-bottom: 1px solid #111; }
+
   .total {
     text-align: right;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
-    padding-top: 12px;
-    border-top: 2px solid #111;
+    padding-top: 7px;
+    border-top: 1px solid #111;
   }
   .nota-pagina {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
     width: 100%;
-    max-width: 560px;
+    max-width: ${PAPEL_ANCHO_MM}mm;
     margin: 0 auto;
   }
   .nota-cuerpo {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   .nota-pie {
     flex-shrink: 0;
-    margin-top: auto;
-    padding-top: 32px;
+    margin-top: 8px;
+    padding-top: 4px;
   }
   .nota-export-root {
-    width: 794px;
-    height: 1123px;
+    width: ${PAPEL_EXPORT_PX}px;
     background: #fff;
     color: #111;
     overflow: hidden;
   }
   .nota-export-root .nota-pagina {
-    min-height: 100%;
-    height: 100%;
     max-width: none;
     width: 100%;
-    padding: 48px 56px;
+    padding: 8px 6px;
     box-sizing: border-box;
   }
   .print-bar {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
   }
   .print-bar button {
-    padding: 8px 18px;
+    padding: 6px 14px;
     margin: 0 4px;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     border: 1px solid #ccc;
-    border-radius: 6px;
+    border-radius: 4px;
     background: #fff;
   }
   .print-bar button:first-child {
@@ -128,9 +135,15 @@ const PRINT_STYLES = `
     border-color: #111;
   }
   @media print {
-    @page { size: A4; margin: 16mm; }
-    body { margin: 0; padding: 0; min-height: 100vh; }
-    .nota-pagina { min-height: 100vh; max-width: none; }
+    @page { size: ${PAPEL_ANCHO_MM}mm auto; margin: 1mm 2mm; }
+    body {
+      margin: 0;
+      padding: 0;
+      max-width: ${PAPEL_ANCHO_MM}mm;
+      width: ${PAPEL_ANCHO_MM}mm;
+      font-size: 13px;
+    }
+    .nota-pagina { max-width: ${PAPEL_ANCHO_MM}mm; }
     .no-print { display: none !important; }
   }
 `
@@ -152,7 +165,7 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
   const ventana = window.open(
     'about:blank',
     nombreVentana,
-    'width=640,height=720,scrollbars=yes,resizable=yes',
+    'width=320,height=680,scrollbars=yes,resizable=yes',
   )
 
   if (!ventana) {
@@ -167,7 +180,7 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
   ventana.focus()
 }
 
-const LOGO_URL = `${window.location.origin}/logo.png`
+const LOGO_URL = `${window.location.origin}/logoBlanco.png`
 
 const buildNotaEntregaContenido = (venta, { incluirBarraImpresion = true } = {}) => {
   const lineas = venta.servicios?.length
@@ -275,9 +288,9 @@ export const descargarNotaEntrega = async (venta) => {
   const estilos = document.createElement('style')
   estilos.textContent = `${PRINT_STYLES}
     .nota-export-root {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
     }`
   contenedor.appendChild(estilos)
 
@@ -353,21 +366,21 @@ export const abrirReporteDiario = (datos) => {
 
   const contenido = `
   <div class="brand-header">
-    <img src="./public/logoBlanco.png" alt="Logo" class="brand-logo" />
+    <img src="${LOGO_URL}" alt="Logo" class="brand-logo" crossorigin="anonymous" />
     <h1>Rim Challouf</h1>
   </div>
   <div class="header-info">
     <div class="report-meta">
-      <p style="font-size: 16px; font-weight: 600; color: #555;">Reporte de Ventas</p>
-      <p style="color: #666;"><strong>Fecha:</strong> ${fechaReporte ? fechaReporte : ' '}</p>
+      <p style="font-weight: 700;">Reporte de Ventas</p>
+      <p><strong>Fecha:</strong> ${fechaReporte ? esc(fechaReporte) : ' '}</p>
     </div>
   </div>
   <table>
     <thead>
       <tr>
-        <th>Doctor</th>
-        <th>Tratamiento</th>
-        <th>Precio</th>
+        <th style="width:22%">Doc.</th>
+        <th style="width:48%">Trat.</th>
+        <th style="width:30%">Precio</th>
       </tr>
     </thead>
     <tbody>
@@ -375,13 +388,13 @@ export const abrirReporteDiario = (datos) => {
     </tbody>
   </table>
   ${cuotas.length > 0 ? `
-  <p style="margin: 20px 0 8px; font-weight: 600;">Cuotas Cashea</p>
+  <p style="margin: 8px 0 4px; font-weight: 700; font-size: 12px;">Cuotas Cashea</p>
   <table>
     <thead>
       <tr>
-        <th>Concepto</th>
-        <th>Hora</th>
-        <th>Monto</th>
+        <th style="width:40%">Concepto</th>
+        <th style="width:25%">Hora</th>
+        <th style="width:35%">Monto</th>
       </tr>
     </thead>
     <tbody>
