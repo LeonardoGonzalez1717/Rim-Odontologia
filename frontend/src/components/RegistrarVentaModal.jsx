@@ -866,7 +866,7 @@ const RegistrarVentaModal = ({
                                      focus:ring-pink-500 cursor-pointer"
                         />
                         <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
-                          {linea.realizado === false ? 'Otro día' : 'Hoy'}
+                          {linea.realizado === false ? 'Saldo a favor' : 'Hoy'}
                         </span>
                       </label>
 
