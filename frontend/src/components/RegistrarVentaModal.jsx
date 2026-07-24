@@ -22,8 +22,9 @@ import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
 import DoctorSelect from './DoctorSelect'
 import ServicioSelect from './ServicioSelect'
+import { useServerDate, getActualServerDatetime } from '../hooks/useServerDate'
 
-const getFechaHoraActual = () => {
+const getFechaHoraActualFallback = () => {
   const ahora = new Date()
   const offsetMs = ahora.getTimezoneOffset() * 60 * 1000
   const local = new Date(ahora.getTime() - offsetMs)
@@ -38,7 +39,7 @@ const calcularMontoCajaCashea = (total) =>
 const crearEstadoInicial = () => ({
   cliente_id: '',
   doctor_id: '',
-  fecha_venta: getFechaHoraActual(),
+  fecha_venta: getActualServerDatetime(),
 })
 
 const RegistrarVentaModal = ({
@@ -50,7 +51,21 @@ const RegistrarVentaModal = ({
   clientes = [],
   onRecargarClientes,
 }) => {
+  const { datetime: _, cargando } = useServerDate()
   const [form, setForm] = useState(crearEstadoInicial)
+  
+  // Al abrir el modal, aseguramos que la hora esté fresca
+  useEffect(() => {
+    if (!cargando) {
+      setForm((prev) => {
+        if (prev.fecha_venta === getFechaHoraActualFallback() || prev.fecha_venta < getActualServerDatetime()) {
+          return { ...prev, fecha_venta: getActualServerDatetime() }
+        }
+        return prev
+      })
+    }
+  }, [cargando])
+
   const [servicioSeleccionado, setServicioSeleccionado] = useState('')
   const [lineas, setLineas] = useState([])
   const [loading, setLoading] = useState(false)
@@ -357,8 +372,8 @@ const RegistrarVentaModal = ({
     setError('')
 
     try {
-      // Al guardar, usar siempre la hora actual del momento del registro
-      const fechaActual = getFechaHoraActual()
+      // Al guardar, usar la hora obtenida del servidor (o fallback local)
+      const fechaActual = getActualServerDatetime()
       setForm((prev) => ({ ...prev, fecha_venta: fechaActual }))
       const fechaFormateada = fechaActual.replace('T', ' ') + ':00'
 
@@ -402,13 +417,19 @@ const RegistrarVentaModal = ({
 
       setExito(true)
       setTimeout(() => {
+        const resetForm = () => {
+          setForm(crearEstadoInicial())
+          setLineas([])
+          setModoAbono(false)
+          setMontoAbono('')
+          setDescripcionAbono('')
+          setDeudaInfo(null)
+          setMontoCashea('')
+          setMontoCasheaEditado(false)
+          setDescripcionCashea('')
+        }
         setExito(false)
-        setForm(crearEstadoInicial())
-        setLineas([])
-        setServicioSeleccionado('')
-        setMontoCashea('')
-        setMontoCasheaEditado(false)
-        setDescripcionCashea('')
+        resetForm()
         onVentaGuardada(ventaRegistrada)
       }, 1200)
     } catch (err) {

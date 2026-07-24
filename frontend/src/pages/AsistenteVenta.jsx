@@ -15,7 +15,8 @@ import { usePaginacion } from '../hooks/usePaginacion'
 import { getDatos, getClientes } from '../api/api'
 import { useAuth } from '../context/AuthContext'
 import Logo from '../components/Logo'
-import { hoyISO, formatearDMA } from '../utils/fechas'
+import { formatearDMA } from '../utils/fechas'
+import { useServerDate } from '../hooks/useServerDate'
 
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
@@ -317,6 +318,7 @@ const VistaTratamientos = ({ servicios, loading, onVolver }) => {
 
 const AsistenteVenta = () => {
   const { user, logout } = useAuth()
+  const { hoy: hoyServidor } = useServerDate()
   const [vista, setVista] = useState('inicio')
   const [doctores, setDoctores] = useState([])
   const [servicios, setServicios] = useState([])
@@ -421,7 +423,7 @@ const AsistenteVenta = () => {
                 Hola, {user?.nombre?.split(' ')[0]}
               </h2>
               <p className="text-sm text-slate-500 mt-1">
-                {formatearDMA(hoyISO())} · ¿Qué deseas hacer hoy?
+                {formatearDMA(hoyServidor)} · ¿Qué deseas hacer hoy?
               </p>
             </div>
 

@@ -26,8 +26,9 @@ import BackendLoader       from './components/BackendLoader'
 import { useAuth }         from './context/AuthContext'
 import { getDashboard, getDatos, getVentas, cancelarVenta,
 } from './api/api'
-import { hoyISO, etiquetaVentas, mensajeVacioVentas } from './utils/fechas'
+import { hoyISO, etiquetaVentas, mensajeVacioVentas, formatearFechaLarga } from './utils/fechas'
 import { useVisibilityRefresh } from './hooks/useVisibilityRefresh'
+import { useServerDate } from './hooks/useServerDate'
 
 const VENTAS_POR_PAGINA = 10
 
@@ -175,7 +176,8 @@ function AdminApp() {
   const [ventas,           setVentas]           = useState([])
   const [paginacionVentas, setPaginacionVentas] = useState(null)
   const [paginaVentas,     setPaginaVentas]     = useState(1)
-  const [fechaVentas,      setFechaVentas]      = useState(hoyISO)
+  const { hoy: hoyServidor } = useServerDate()
+  const [fechaVentas,      setFechaVentas]      = useState(hoyServidor)
   const [loadingVentas,    setLoadingVentas]    = useState(true)
   const paginaVentasRef = useRef(1)
   const fechaVentasRef = useRef(fechaVentas)
@@ -266,8 +268,16 @@ function AdminApp() {
   }, [])
 
   // ─────────────────────────────────────────────────────────────────
-  // Carga inicial
+  // Carga inicial y actualización al recibir fecha del servidor
   // ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Si la fecha del servidor llega o cambia, actualizamos el estado si no fue modificado
+    if (fechaVentas === hoyISO() && hoyServidor !== hoyISO()) {
+      setFechaVentas(hoyServidor)
+      fechaVentasRef.current = hoyServidor
+    }
+  }, [hoyServidor])
+
   useEffect(() => {
     cargarDashboardSecuencial(fechaVentasRef.current, 1)
   }, [cargarDashboardSecuencial])
@@ -397,9 +407,7 @@ function AdminApp() {
               </h2>
               {paginaActual === 'dashboard' && (
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {new Date().toLocaleDateString('es-MX', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                  })}
+                  {formatearFechaLarga(hoyServidor)}
                 </p>
               )}
             </div>

@@ -7,6 +7,7 @@ import React, { useRef, useState } from 'react'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import { hoyISO, ayerISO, esHoy, esAyer, esFechaPasada, sumarDias, formatearDMA } from '../utils/fechas'
+import { useServerDate } from '../hooks/useServerDate'
 
 const FiltroFechaVentas = ({ fecha, onChange, className = '' }) => {
   const [pinConfirm, setPinConfirm] = useState(null)
@@ -14,7 +15,10 @@ const FiltroFechaVentas = ({ fecha, onChange, className = '' }) => {
   /** Evita pedir PIN dos veces: al abrir calendario y luego al elegir fecha pasada */
   const pickerAutorizado = useRef(false)
 
-  const maxFecha = hoyISO()
+  // Fecha del servidor — evita que un reloj local incorrecto afecte el filtro
+  const { hoy: hoyServidor } = useServerDate()
+
+  const maxFecha = hoyServidor
   const puedeAvanzar = fecha < maxFecha
 
   const modalPinPasada = (nuevaFecha, alConfirmar) => ({
@@ -29,7 +33,7 @@ const FiltroFechaVentas = ({ fecha, onChange, className = '' }) => {
   const solicitarCambio = (nuevaFecha) => {
     if (!nuevaFecha || nuevaFecha === fecha) return
 
-    if (esFechaPasada(nuevaFecha)) {
+    if (esFechaPasada(nuevaFecha, hoyServidor)) {
       if (pickerAutorizado.current) {
         pickerAutorizado.current = false
         onChange(nuevaFecha)
@@ -152,9 +156,9 @@ const FiltroFechaVentas = ({ fecha, onChange, className = '' }) => {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => solicitarCambio(hoyISO())}
+            onClick={() => solicitarCambio(hoyServidor)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-200
-              ${esHoy(fecha)
+              ${esHoy(fecha, hoyServidor)
                 ? 'bg-pink-600 text-white border-pink-600'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-pink-300 hover:text-pink-600'
               }`}
@@ -163,9 +167,9 @@ const FiltroFechaVentas = ({ fecha, onChange, className = '' }) => {
           </button>
           <button
             type="button"
-            onClick={() => solicitarCambio(ayerISO())}
+            onClick={() => solicitarCambio(ayerISO(hoyServidor))}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-200
-              ${esAyer(fecha)
+              ${esAyer(fecha, hoyServidor)
                 ? 'bg-pink-600 text-white border-pink-600'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-pink-300 hover:text-pink-600'
               }`}

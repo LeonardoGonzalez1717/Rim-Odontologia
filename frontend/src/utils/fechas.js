@@ -2,13 +2,23 @@
 // utils/fechas.js — Helpers de fecha para filtros de ventas
 // =============================================================================
 
-export const hoyISO = () => {
+/**
+ * Devuelve la fecha actual en formato YYYY-MM-DD.
+ * @param {string} [fechaBase] — Si se provee, se usa en lugar del reloj local
+ *   del cliente (pasar la fecha obtenida del servidor para mayor precisión).
+ */
+export const hoyISO = (fechaBase) => {
+  if (fechaBase) return String(fechaBase).slice(0, 10)
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export const ayerISO = () => {
-  const d = parseFechaLocal(hoyISO())
+/**
+ * Devuelve la fecha de ayer en formato YYYY-MM-DD.
+ * @param {string} [fechaBase] — Base para calcular «ayer» (fecha del servidor).
+ */
+export const ayerISO = (fechaBase) => {
+  const d = parseFechaLocal(hoyISO(fechaBase))
   d.setDate(d.getDate() - 1)
   return toISO(d)
 }
@@ -21,12 +31,15 @@ export const parseFechaLocal = (iso) => {
 export const toISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export const esHoy = (fecha) => fecha === hoyISO()
+/** @param {string} fecha @param {string} [fechaBase] */
+export const esHoy = (fecha, fechaBase) => fecha === hoyISO(fechaBase)
 
-export const esAyer = (fecha) => fecha === ayerISO()
+/** @param {string} fecha @param {string} [fechaBase] */
+export const esAyer = (fecha, fechaBase) => fecha === ayerISO(fechaBase)
 
-/** true si la fecha es anterior al día actual */
-export const esFechaPasada = (fecha) => fecha < hoyISO()
+/** true si la fecha es anterior al día actual
+ * @param {string} fecha @param {string} [fechaBase] */
+export const esFechaPasada = (fecha, fechaBase) => fecha < hoyISO(fechaBase)
 
 export const formatearFechaLarga = (fecha) =>
   parseFechaLocal(fecha).toLocaleDateString('es-MX', {
