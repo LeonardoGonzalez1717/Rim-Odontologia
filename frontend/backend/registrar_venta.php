@@ -196,6 +196,32 @@ try {
     }
 
     $pdo = obtenerConexion();
+
+    $stmtCheck = $pdo->prepare("
+        SELECT id FROM ventas 
+        WHERE cliente_id = :cliente_id 
+          AND doctor_id = :doctor_id 
+          AND total = :total
+          AND fecha_venta = :fecha_venta
+        ORDER BY id DESC LIMIT 1
+    ");
+    $stmtCheck->execute([
+        ':cliente_id'  => $cliente_id,
+        ':doctor_id'   => $doctor_id,
+        ':total'       => $total,
+        ':fecha_venta' => $fecha_venta,
+    ]);
+
+    if ($row = $stmtCheck->fetch(PDO::FETCH_ASSOC)) {
+        http_response_code(200);
+        echo json_encode([
+            'success' => true,
+            'id'      => (int) $row['id'],
+            'message' => 'Venta registrada correctamente.',
+        ]);
+        exit;
+    }
+
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
