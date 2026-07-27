@@ -12,19 +12,20 @@ import {
   ChevronRight, LogOut, UserCircle, Users, Contact, ClipboardList,
 } from 'lucide-react'
 
-import Dashboard           from './components/Dashboard'
+import Dashboard from './components/Dashboard'
 import RegistrarVentaModal from './components/RegistrarVentaModal'
 import TratamientosPendientes from './components/TratamientosPendientes'
-import Doctores            from './pages/Doctores'
-import Servicios           from './pages/Servicios'
-import Clientes            from './pages/Clientes'
-import Usuarios            from './pages/Usuarios'
-import Login               from './pages/Login'
-import AsistenteVenta      from './pages/AsistenteVenta'
-import Logo                from './components/Logo'
-import BackendLoader       from './components/BackendLoader'
-import { useAuth }         from './context/AuthContext'
-import { getDashboard, getDatos, getVentas, cancelarVenta,
+import Doctores from './pages/Doctores'
+import Servicios from './pages/Servicios'
+import Clientes from './pages/Clientes'
+import Usuarios from './pages/Usuarios'
+import Login from './pages/Login'
+import AsistenteVenta from './pages/AsistenteVenta'
+import Logo from './components/Logo'
+import BackendLoader from './components/BackendLoader'
+import { useAuth } from './context/AuthContext'
+import {
+  getDashboard, getDatos, getVentas, cancelarVenta,
 } from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas, formatearFechaLarga } from './utils/fechas'
 import { useVisibilityRefresh } from './hooks/useVisibilityRefresh'
@@ -34,12 +35,12 @@ const VENTAS_POR_PAGINA = 10
 
 // Definición de las páginas del navbar
 const PAGES = [
-  { id: 'dashboard',  label: 'Dashboard',                icon: LayoutDashboard, section: 'Principal' },
-  { id: 'doctores',   label: 'Doctores',                 icon: UserCog,         section: 'Gestión' },
-  { id: 'clientes',   label: 'Clientes',                 icon: Contact,         section: 'Gestión' },
-  { id: 'servicios',  label: 'Tratamientos',             icon: Stethoscope,     section: 'Gestión' },
-  { id: 'pendientes', label: 'Tratamientos pendientes',  icon: ClipboardList,   section: 'Gestión' },
-  { id: 'usuarios',   label: 'Perfiles',                 icon: Users,           section: 'Administración' },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Principal' },
+  { id: 'doctores', label: 'Doctores', icon: UserCog, section: 'Gestión' },
+  { id: 'clientes', label: 'Clientes', icon: Contact, section: 'Gestión' },
+  { id: 'servicios', label: 'Tratamientos', icon: Stethoscope, section: 'Gestión' },
+  { id: 'pendientes', label: 'Tratamientos pendientes', icon: ClipboardList, section: 'Gestión' },
+  { id: 'usuarios', label: 'Perfiles', icon: Users, section: 'Administración' },
 ]
 
 // Agrupar páginas por sección
@@ -169,16 +170,16 @@ function AdminApp() {
 
   // ── Dashboard ──
   const [dashboardData, setDashboardData] = useState(null)
-  const [loadingDash,   setLoadingDash]   = useState(true)
-  const [errorDash,     setErrorDash]     = useState('')
+  const [loadingDash, setLoadingDash] = useState(true)
+  const [errorDash, setErrorDash] = useState('')
 
   // ── Ventas paginadas ──
-  const [ventas,           setVentas]           = useState([])
+  const [ventas, setVentas] = useState([])
   const [paginacionVentas, setPaginacionVentas] = useState(null)
-  const [paginaVentas,     setPaginaVentas]     = useState(1)
+  const [paginaVentas, setPaginaVentas] = useState(1)
   const { hoy: hoyServidor } = useServerDate()
-  const [fechaVentas,      setFechaVentas]      = useState(hoyServidor)
-  const [loadingVentas,    setLoadingVentas]    = useState(true)
+  const [fechaVentas, setFechaVentas] = useState(hoyServidor)
+  const [loadingVentas, setLoadingVentas] = useState(true)
   const paginaVentasRef = useRef(1)
   const fechaVentasRef = useRef(fechaVentas)
   const cargaInicialHecha = useRef(false)
@@ -186,14 +187,14 @@ function AdminApp() {
   fechaVentasRef.current = fechaVentas
 
   // ── Datos del formulario de registro ──
-  const [doctores,  setDoctores]  = useState([])
+  const [doctores, setDoctores] = useState([])
   const [servicios, setServicios] = useState([])
-  const [clientes,  setClientes]  = useState([])
+  const [clientes, setClientes] = useState([])
 
   // ── UI ──
   const [modalAbierto, setModalAbierto] = useState(false)
-  const [cancelando,   setCancelando]   = useState(null)
-  const [toast,        setToast]        = useState(null)
+  const [cancelando, setCancelando] = useState(null)
+  const [toast, setToast] = useState(null)
 
   // ─────────────────────────────────────────────────────────────────
   // Cargar ventas por fecha (paginadas)
@@ -229,9 +230,9 @@ function AdminApp() {
   const cargarFormData = useCallback(async () => {
     try {
       const data = await getDatos()
-      setDoctores(data.doctores  ?? [])
+      setDoctores(data.doctores ?? [])
       setServicios(data.servicios ?? [])
-      setClientes(data.clientes  ?? [])
+      setClientes(data.clientes ?? [])
     } catch (err) {
       console.error('Error al cargar datos del formulario:', err)
     }

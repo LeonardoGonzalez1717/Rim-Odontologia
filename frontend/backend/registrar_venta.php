@@ -222,15 +222,18 @@ try {
         exit;
     }
 
+    $usuario_id = !empty($datos['usuario_id']) ? (int) $datos['usuario_id'] : null;
+
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, cliente_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, estado)
-         VALUES (:doctor_id, :cliente_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, 'completada')"
+        "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, estado)
+         VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, 'completada')"
     );
     $stmtVenta->execute([
         ':doctor_id'           => $doctor_id,
         ':cliente_id'          => $cliente_id,
+        ':usuario_id'          => $usuario_id,
         ':fecha_venta'         => $fecha_venta,
         ':total'               => $total,
         ':cashea'              => $cashea ? 1 : 0,

@@ -7,7 +7,7 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, ExternalLink } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, ExternalLink, UserCheck, User } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
@@ -121,6 +121,9 @@ const VentasRecientes = ({
                     Doctor
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Registrado por
+                  </th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Servicio
                   </th>
                   <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-8">
@@ -183,6 +186,18 @@ const VentasRecientes = ({
                         <span className="text-sm font-semibold text-slate-700">
                           {venta.doctor}
                         </span>
+                      </td>
+
+                      {/* Registrado por */}
+                      <td className="py-3.5 pr-4">
+                        {venta.usuario_nombre ? (
+                          <div className="flex items-center gap-1.5">
+                            <User size={13} className="text-pink-400 flex-shrink-0" />
+                            <span className="text-sm text-slate-600">{venta.usuario_nombre}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Servicio(s) */}

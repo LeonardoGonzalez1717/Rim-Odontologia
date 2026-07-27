@@ -239,10 +239,25 @@ export async function getDashboard(fecha) {
 // Endpoint: POST /api/registrar_venta.php
 // @param {{ doctor_id, total, fecha_venta, servicios: Array<{servicio_id, precio}> }} datos
 // -----------------------------------------------------------------------------
+function getUsuarioIdSesion() {
+  try {
+    const raw = sessionStorage.getItem('rim_challouf_user')
+    if (!raw) return null
+    const u = JSON.parse(raw)
+    return u?.id || null
+  } catch {
+    return null
+  }
+}
+
 export async function registrarVenta(datos) {
+  const payload = {
+    usuario_id: datos?.usuario_id || getUsuarioIdSesion(),
+    ...datos,
+  }
   return apiFetch(`${API_BASE}/registrar_venta.php`, {
     method: 'POST',
-    body: JSON.stringify(datos),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -384,21 +399,21 @@ export async function crearUsuario(datos) {
   })
 }
 
-// PUT /api/usuarios.php — Actualizar usuario
+// PUT /api/usuarios.php — Actualizar usuario (via method spoofing para compatibilidad con hosting)
 // @param {{ id, username, nombre, rol, password?, pin? }} datos
 export async function actualizarUsuario(datos) {
   return apiFetch(`${API_BASE}/usuarios.php`, {
-    method: 'PUT',
-    body: JSON.stringify(datos),
+    method: 'POST',
+    body: JSON.stringify({ _method: 'PUT', ...datos }),
   })
 }
 
-// DELETE /api/usuarios.php — Eliminar usuario
+// DELETE /api/usuarios.php — Eliminar usuario (via method spoofing para compatibilidad con hosting)
 // @param {number} id
 export async function eliminarUsuario(id) {
   return apiFetch(`${API_BASE}/usuarios.php`, {
-    method: 'DELETE',
-    body: JSON.stringify({ id }),
+    method: 'POST',
+    body: JSON.stringify({ _method: 'DELETE', id }),
   })
 }
 

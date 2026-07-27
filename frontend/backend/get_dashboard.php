@@ -125,6 +125,7 @@ try {
             TIME_FORMAT(v.fecha_venta, '%H:%i') AS hora,
             d.nombre                             AS doctor,
             c.nombre                             AS cliente,
+            u.nombre                             AS usuario_nombre,
             v.total,
             COALESCE(v.cashea, 0) AS cashea,
             COALESCE(v.monto_caja, v.total) AS monto_caja,
@@ -133,6 +134,7 @@ try {
          FROM ventas v
          INNER JOIN doctores d ON v.doctor_id = d.id
          LEFT JOIN clientes c ON v.cliente_id = c.id
+         LEFT JOIN usuarios u ON v.usuario_id = u.id
          WHERE DATE(v.fecha_venta) = :fecha
          ORDER BY v.fecha_venta DESC
          LIMIT 10"
@@ -145,6 +147,7 @@ try {
             'hora'    => $row['hora'],
             'doctor'  => $row['doctor'],
             'cliente' => $row['cliente'],
+            'usuario_nombre'     => $row['usuario_nombre'],
             'total'      => (float) $row['total'],
             'cashea'             => (bool)  $row['cashea'],
             'monto_caja'         => (float) $row['monto_caja'],

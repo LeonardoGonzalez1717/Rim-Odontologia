@@ -46,10 +46,13 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `cashea`             TINYINT(1)     NOT NULL DEFAULT 0,
   `monto_caja`         DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `descripcion_cashea` VARCHAR(500)   NULL DEFAULT NULL,
+  `usuario_id`         INT(11)        NULL DEFAULT NULL,
   `estado`             ENUM('completada','cancelada') NOT NULL DEFAULT 'completada',
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_venta_doctor`
-    FOREIGN KEY (`doctor_id`) REFERENCES `doctores`(`id`) ON UPDATE CASCADE
+    FOREIGN KEY (`doctor_id`) REFERENCES `doctores`(`id`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_venta_usuario`
+    FOREIGN KEY (`usuario_id`) REFERENCES `usuarios`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
@@ -87,7 +90,7 @@ CREATE TABLE IF NOT EXISTS `ajustes_cashea` (
 -- DATOS DE PRUEBA: Doctores
 -- =============================================================================
 INSERT INTO `doctores` (`cedula`, `nombre`, `especialidad`, `estado`) VALUES
-  ('V-00000000', 'Dr. Rim Challouf', 'Odontología General', 'activo'),
+  ('V-00000000', 'Dr. Rim Challouf', 'Odontología General', 'activo');
 
 
 -- =============================================================================

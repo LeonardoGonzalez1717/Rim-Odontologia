@@ -22,6 +22,18 @@ require_once 'conexion.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Method spoofing: permite PUT y DELETE desde clientes que solo pueden usar POST
+// El cliente envía POST con _method = 'PUT' | 'DELETE' en el body JSON
+if ($method === 'POST') {
+    $rawEarly = file_get_contents('php://input');
+    $tmpData  = json_decode($rawEarly, true);
+    if (isset($tmpData['_method']) && in_array(strtoupper($tmpData['_method']), ['PUT', 'DELETE', 'PATCH'], true)) {
+        $method = strtoupper($tmpData['_method']);
+    }
+    // Guardar el body ya leído para no consumirlo dos veces
+    define('CACHED_BODY', $rawEarly);
+}
+
 function responderError(int $codigo, string $mensaje): void {
     http_response_code($codigo);
     echo json_encode(['success' => false, 'message' => $mensaje]);
@@ -66,7 +78,7 @@ try {
         exit;
     }
 
-    $body  = file_get_contents('php://input');
+    $body  = defined('CACHED_BODY') ? CACHED_BODY : file_get_contents('php://input');
     $datos = json_decode($body, true);
 
     if (json_last_error() !== JSON_ERROR_NONE) {

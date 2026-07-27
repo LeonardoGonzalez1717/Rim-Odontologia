@@ -39,9 +39,30 @@ function obtenerConexion(): PDO
 
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, $opciones);
+        asegurarColumnaUsuario($pdo);
         return $pdo;
     } catch (PDOException $e) {
         // En producción, loguear el error en vez de mostrarlo al cliente
         throw new RuntimeException('Error de conexión a la base de datos: ' . $e->getMessage(), 500);
     }
 }
+
+/**
+ * Asegura que la tabla ventas tenga la columna usuario_id.
+ */
+function asegurarColumnaUsuario(PDO $pdo): void
+{
+    static $verificado = false;
+    if ($verificado) return;
+
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM ventas LIKE 'usuario_id'");
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE ventas ADD COLUMN usuario_id INT(11) NULL DEFAULT NULL AFTER cliente_id");
+        }
+        $verificado = true;
+    } catch (Throwable $e) {
+        // Ignorar si falla la verificación estática para evitar bloquear operaciones
+    }
+}
+

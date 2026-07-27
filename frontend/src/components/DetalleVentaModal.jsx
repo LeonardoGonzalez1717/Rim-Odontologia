@@ -34,8 +34,8 @@ const DetalleVentaModal = ({ venta, onClose, mostrarFecha = false }) => {
             <p className="text-sm text-slate-500 mt-0.5">
               {mostrarFecha && venta.fecha
                 ? `${new Date(`${venta.fecha}T12:00:00`).toLocaleDateString('es-MX', {
-                    day: '2-digit', month: 'short', year: 'numeric',
-                  })} · ${venta.hora}`
+                  day: '2-digit', month: 'short', year: 'numeric',
+                })} · ${venta.hora}`
                 : venta.hora}
             </p>
           </div>
@@ -79,8 +79,8 @@ const DetalleVentaModal = ({ venta, onClose, mostrarFecha = false }) => {
                   key={s.id ?? i}
                   className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 border
                              ${s.cashea
-                               ? 'bg-amber-50/70 border-amber-200'
-                               : 'bg-slate-50 border-slate-100'}`}
+                      ? 'bg-amber-50/70 border-amber-200'
+                      : 'bg-slate-50 border-slate-100'}`}
                 >
                   <div className="min-w-0 flex-1">
                     <span className="text-sm text-slate-700">{s.nombre}</span>
