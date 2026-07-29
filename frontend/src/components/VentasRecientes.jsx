@@ -31,6 +31,10 @@ const VentasRecientes = ({
   fechaFiltro,
   onFechaChange,
   ocultarFiltro = false,
+  // Props de filtro por asistente
+  asistentes = [],
+  asistenteSeleccionado = null,
+  onAsistenteChange,
 }) => {
   // ID de la venta para la cual se muestra el diálogo de confirmación
   const [confirmandoId, setConfirmandoId] = useState(null)
@@ -93,6 +97,8 @@ const VentasRecientes = ({
             </span>
           </div>
         </div>
+
+
 
         {/* Estado vacío */}
         {ventas.length === 0 ? (

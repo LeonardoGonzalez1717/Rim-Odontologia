@@ -7,6 +7,7 @@
 //   todas      {string}  "1" — historial completo (ignora fecha)
 //   pagina     {int}     Página actual (default: 1)
 //   por_pagina {int}     Registros por página (default: 10, máx: 50)
+//   usuario_id {int}     Filtrar por ID de usuario (asistente) — opcional
 // Respuesta:
 //   {
 //     "success": true,
@@ -43,10 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 try {
     $pdo = obtenerConexion();
 
-    $todas     = isset($_GET['todas']) && $_GET['todas'] === '1';
-    $pagina    = max((int) ($_GET['pagina'] ?? 1), 1);
-    $porPagina = min(max((int) ($_GET['por_pagina'] ?? $_GET['limite'] ?? 10), 1), 50);
-    $offset    = ($pagina - 1) * $porPagina;
+    $todas      = isset($_GET['todas']) && $_GET['todas'] === '1';
+    $pagina     = max((int) ($_GET['pagina'] ?? 1), 1);
+    $porPagina  = min(max((int) ($_GET['por_pagina'] ?? $_GET['limite'] ?? 10), 1), 50);
+    $offset     = ($pagina - 1) * $porPagina;
+    $usuarioId  = isset($_GET['usuario_id']) && (int)$_GET['usuario_id'] > 0
+                    ? (int)$_GET['usuario_id']
+                    : null;
 
     $fromSql = "FROM ventas v
                 INNER JOIN doctores d ON v.doctor_id = d.id
@@ -69,9 +73,9 @@ try {
                   $fromSql";
 
     if ($todas) {
-        $whereSql = '';
-        $modo     = 'historial';
-        $fecha    = null;
+        $whereClauses = [];
+        $modo         = 'historial';
+        $fecha        = null;
     } else {
         $fecha = trim($_GET['fecha'] ?? date('Y-m-d'));
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
@@ -79,14 +83,26 @@ try {
             echo json_encode(['success' => false, 'message' => 'Formato de fecha inválido. Use YYYY-MM-DD.']);
             exit;
         }
-        $whereSql = ' WHERE DATE(v.fecha_venta) = :fecha';
-        $modo     = 'dia';
+        $whereClauses = ['DATE(v.fecha_venta) = :fecha'];
+        $modo         = 'dia';
     }
 
-    $countSql = "SELECT COUNT(*) $fromSql$whereSql";
+    // Filtro opcional por usuario (asistente)
+    if ($usuarioId !== null) {
+        $whereClauses[] = 'v.usuario_id = :usuario_id';
+    }
+
+    $whereSql = count($whereClauses) > 0
+        ? ' WHERE ' . implode(' AND ', $whereClauses)
+        : '';
+
+    $countSql  = "SELECT COUNT(*) $fromSql$whereSql";
     $stmtCount = $pdo->prepare($countSql);
     if (!$todas) {
         $stmtCount->bindValue(':fecha', $fecha);
+    }
+    if ($usuarioId !== null) {
+        $stmtCount->bindValue(':usuario_id', $usuarioId, PDO::PARAM_INT);
     }
     $stmtCount->execute();
     $total = (int) $stmtCount->fetchColumn();
@@ -97,12 +113,15 @@ try {
         $offset = ($pagina - 1) * $porPagina;
     }
 
-    $sql = $selectSql . $whereSql
-         . ' ORDER BY v.fecha_venta DESC LIMIT ' . (int) $porPagina
-         . ' OFFSET ' . (int) $offset;
+    $sql  = $selectSql . $whereSql
+          . ' ORDER BY v.fecha_venta DESC LIMIT ' . (int) $porPagina
+          . ' OFFSET ' . (int) $offset;
     $stmt = $pdo->prepare($sql);
     if (!$todas) {
         $stmt->bindValue(':fecha', $fecha);
+    }
+    if ($usuarioId !== null) {
+        $stmt->bindValue(':usuario_id', $usuarioId, PDO::PARAM_INT);
     }
     $stmt->execute();
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2 } from 'lucide-react'
+import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2, Users } from 'lucide-react'
 import MetricCard from './MetricCard'
 import VentasPorDoctor from './VentasPorDoctor'
 import VentasRecientes from './VentasRecientes'
@@ -58,6 +58,10 @@ const Dashboard = ({
   onFechaVentasChange,
   tituloVentas,
   mensajeVacioVentas,
+  // ── Filtro por asistente ──
+  asistentes = [],
+  asistenteSeleccionado = null,
+  onAsistenteChange,
 }) => {
   // Mientras carga, mostrar skeleton
   if (loading && !datos) {
@@ -95,33 +99,81 @@ const Dashboard = ({
         <FiltroFechaVentas fecha={fechaVentas} onChange={onFechaVentasChange} />
       </div>
 
-      {/* ── Fila de botones adicionales (Reporte Diario) ── */}
-      <div className="flex justify-end">
-        <button
-          onClick={async () => {
-            try {
-              const res = await getVentas({
-                fecha: fechaVentas,
-                pagina: 1,
-                por_pagina: 50,
-              })
-              abrirReporteDiario({ ...datos, ventas_recientes: res.ventas ?? [] })
-            } catch {
-              abrirReporteDiario(datos)
-            }
-          }}
-          className="flex items-center gap-2 text-xs font-semibold
-                     text-pink-600 bg-pink-50 hover:bg-pink-100
-                     border border-pink-200 px-4 py-2.5 rounded-xl
-                     transition-all duration-200 shadow-sm"
-          title="Generar reporte del día seleccionado"
-        >
-          <FileBarChart2 size={15} />
-          {esHoy(fechaVentas)
-            ? 'Generar Reporte del Día'
-            : `Reporte del ${formatearFechaCorta(fechaVentas)}`}
-        </button>
+      {/* ── Fila de botones adicionales: Filtros (Izquierda) + Reporte Diario (Derecha) ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Filtros por asistente */}
+        {asistentes.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Botón "Todos" */}
+              <button
+                onClick={() => onAsistenteChange?.(null)}
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg
+                            border transition-all duration-200
+                            ${
+                              asistenteSeleccionado === null
+                                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+              >
+                Todos
+              </button>
+
+              {/* Un botón por cada asistente */}
+              {asistentes.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => onAsistenteChange?.(a.id)}
+                  title={`Ver ventas registradas por ${a.nombre}`}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg
+                              border transition-all duration-200
+                              ${
+                                asistenteSeleccionado === a.id
+                                  ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-pink-50 hover:border-pink-300 hover:text-pink-700'
+                              }`}
+                >
+                  {a.nombre}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] font-medium text-slate-400 italic">
+              * Al seleccionar un asistente cambiarán las estadísticas totales, tratamientos y desglose por doctor.
+            </p>
+          </div>
+        ) : (
+          <div></div>
+        )}
+
+        {/* Botón: Generar Reporte Diario */}
+        <div className="flex-shrink-0 lg:self-start">
+          <button
+            onClick={async () => {
+              try {
+                const res = await getVentas({
+                  fecha: fechaVentas,
+                  pagina: 1,
+                  por_pagina: 50,
+                })
+                abrirReporteDiario({ ...datos, ventas_recientes: res.ventas ?? [] })
+              } catch {
+                abrirReporteDiario(datos)
+              }
+            }}
+            className="flex items-center gap-2 text-xs font-semibold
+                       text-pink-600 bg-pink-50 hover:bg-pink-100
+                       border border-pink-200 px-4 py-2.5 rounded-xl
+                       transition-all duration-200 shadow-sm"
+            title="Generar reporte del día seleccionado"
+          >
+            <FileBarChart2 size={15} />
+            {esHoy(fechaVentas)
+              ? 'Generar Reporte del Día'
+              : `Reporte del ${formatearFechaCorta(fechaVentas)}`}
+          </button>
+        </div>
       </div>
+
       {/* ── Fila 1: Métricas principales ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
         {/* Ingresos del día */}
@@ -173,6 +225,9 @@ const Dashboard = ({
             ocultarFiltro
             titulo={tituloVentas}
             mensajeVacio={mensajeVacioVentas}
+            asistentes={asistentes}
+            asistenteSeleccionado={asistenteSeleccionado}
+            onAsistenteChange={onAsistenteChange}
           />
         </div>
 

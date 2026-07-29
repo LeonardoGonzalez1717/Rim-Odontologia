@@ -25,7 +25,7 @@ import Logo from './components/Logo'
 import BackendLoader from './components/BackendLoader'
 import { useAuth } from './context/AuthContext'
 import {
-  getDashboard, getDatos, getVentas, cancelarVenta,
+  getDashboard, getDatos, getVentas, cancelarVenta, getUsuarios,
 } from './api/api'
 import { hoyISO, etiquetaVentas, mensajeVacioVentas, formatearFechaLarga } from './utils/fechas'
 import { useVisibilityRefresh } from './hooks/useVisibilityRefresh'
@@ -186,6 +186,12 @@ function AdminApp() {
   paginaVentasRef.current = paginaVentas
   fechaVentasRef.current = fechaVentas
 
+  // ── Filtro por asistente ──
+  const [asistentes, setAsistentes] = useState([])
+  const [asistenteSeleccionado, setAsistenteSeleccionado] = useState(null)
+  const asistenteSeleccionadoRef = useRef(null)
+  asistenteSeleccionadoRef.current = asistenteSeleccionado
+
   // ── Datos del formulario de registro ──
   const [doctores, setDoctores] = useState([])
   const [servicios, setServicios] = useState([])
@@ -199,10 +205,10 @@ function AdminApp() {
   // ─────────────────────────────────────────────────────────────────
   // Cargar ventas por fecha (paginadas)
   // ─────────────────────────────────────────────────────────────────
-  const cargarVentas = useCallback(async (pagina = 1, fecha = fechaVentasRef.current) => {
+  const cargarVentas = useCallback(async (pagina = 1, fecha = fechaVentasRef.current, usuarioId = asistenteSeleccionadoRef.current) => {
     setLoadingVentas(true)
     try {
-      const data = await getVentas({ fecha, pagina, por_pagina: VENTAS_POR_PAGINA })
+      const data = await getVentas({ fecha, pagina, por_pagina: VENTAS_POR_PAGINA, usuario_id: usuarioId })
       setVentas(data.ventas ?? [])
       setPaginacionVentas(data.paginacion ?? null)
       setPaginaVentas(data.paginacion?.pagina ?? pagina)
@@ -242,15 +248,16 @@ function AdminApp() {
   const cargarDashboardSecuencial = useCallback(async (
     fecha = fechaVentasRef.current,
     pagina = paginaVentasRef.current,
+    usuarioId = asistenteSeleccionadoRef.current,
   ) => {
     setLoadingDash(true)
     setLoadingVentas(true)
     setErrorDash('')
     try {
-      const dash = await getDashboard(fecha)
+      const dash = await getDashboard(fecha, usuarioId)
       setDashboardData(dash)
 
-      const ventasData = await getVentas({ fecha, pagina, por_pagina: VENTAS_POR_PAGINA })
+      const ventasData = await getVentas({ fecha, pagina, por_pagina: VENTAS_POR_PAGINA, usuario_id: usuarioId })
       setVentas(ventasData.ventas ?? [])
       setPaginacionVentas(ventasData.paginacion ?? null)
       setPaginaVentas(ventasData.paginacion?.pagina ?? pagina)
@@ -269,6 +276,19 @@ function AdminApp() {
   }, [])
 
   // ─────────────────────────────────────────────────────────────────
+  // Cargar usuarios asistentes (para los botones de filtro)
+  // ─────────────────────────────────────────────────────────────────
+  const cargarAsistentes = useCallback(async () => {
+    try {
+      const data = await getUsuarios()
+      const soloAsistentes = (data.usuarios ?? []).filter((u) => u.rol === 'asistente')
+      setAsistentes(soloAsistentes)
+    } catch (err) {
+      console.error('Error al cargar asistentes:', err)
+    }
+  }, [])
+
+  // ─────────────────────────────────────────────────────────────────
   // Carga inicial y actualización al recibir fecha del servidor
   // ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -281,7 +301,8 @@ function AdminApp() {
 
   useEffect(() => {
     cargarDashboardSecuencial(fechaVentasRef.current, 1)
-  }, [cargarDashboardSecuencial])
+    cargarAsistentes()
+  }, [cargarDashboardSecuencial, cargarAsistentes])
 
   // Al volver al dashboard desde otra sección, recargar sin duplicar la carga inicial
   useEffect(() => {
@@ -329,6 +350,16 @@ function AdminApp() {
   const handleAbonoRegistrado = () => {
     setToast({ mensaje: '¡Pago Cashea registrado en caja!', tipo: 'success' })
     cargarDashboardSecuencial(fechaVentasRef.current, paginaVentasRef.current)
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Cambiar filtro por asistente
+  // ─────────────────────────────────────────────────────────────────
+  const handleAsistenteChange = (usuarioId) => {
+    setAsistenteSeleccionado(usuarioId)
+    asistenteSeleccionadoRef.current = usuarioId
+    setPaginaVentas(1)
+    cargarDashboardSecuencial(fechaVentasRef.current, 1, usuarioId)
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -470,6 +501,9 @@ function AdminApp() {
                 onFechaVentasChange={handleFechaVentasChange}
                 tituloVentas={etiquetaVentas(fechaVentas)}
                 mensajeVacioVentas={mensajeVacioVentas(fechaVentas)}
+                asistentes={asistentes}
+                asistenteSeleccionado={asistenteSeleccionado}
+                onAsistenteChange={handleAsistenteChange}
               />
             </>
           )}

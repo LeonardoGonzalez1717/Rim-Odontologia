@@ -203,7 +203,7 @@ export async function verifyPin(pin) {
 // Endpoint: GET /api/get_ventas.php
 // @param {{ fecha?: string, todas?: boolean, pagina?: number, por_pagina?: number }} opciones
 // -----------------------------------------------------------------------------
-export async function getVentas({ fecha, todas = false, pagina = 1, por_pagina = 10 } = {}) {
+export async function getVentas({ fecha, todas = false, pagina = 1, por_pagina = 10, usuario_id } = {}) {
   const params = new URLSearchParams()
   if (todas) {
     params.set('todas', '1')
@@ -212,6 +212,9 @@ export async function getVentas({ fecha, todas = false, pagina = 1, por_pagina =
   }
   params.set('pagina', String(pagina))
   params.set('por_pagina', String(por_pagina))
+  if (usuario_id) {
+    params.set('usuario_id', String(usuario_id))
+  }
 
   const qs = params.toString()
   return apiFetch(`${API_BASE}/get_ventas.php${qs ? `?${qs}` : ''}`)
@@ -229,9 +232,12 @@ export async function getDatos() {
 // getDashboard(fecha?) — Métricas del dashboard para una fecha (default: hoy)
 // Endpoint: GET /api/get_dashboard.php
 // @param {string} [fecha] — YYYY-MM-DD
-export async function getDashboard(fecha) {
-  const qs = fecha ? `?fecha=${encodeURIComponent(fecha)}` : ''
-  return apiFetch(`${API_BASE}/get_dashboard.php${qs}`)
+export async function getDashboard(fecha, usuario_id) {
+  const params = new URLSearchParams()
+  if (fecha) params.set('fecha', fecha)
+  if (usuario_id) params.set('usuario_id', String(usuario_id))
+  const qs = params.toString()
+  return apiFetch(`${API_BASE}/get_dashboard.php${qs ? `?${qs}` : ''}`)
 }
 
 // -----------------------------------------------------------------------------

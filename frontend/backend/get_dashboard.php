@@ -36,14 +36,26 @@ try {
         exit;
     }
 
+    $usuarioId  = isset($_GET['usuario_id']) && (int)$_GET['usuario_id'] > 0
+                    ? (int)$_GET['usuario_id']
+                    : null;
+
+    $whereIngresos = " WHERE DATE(v.fecha_venta) = :fecha AND v.estado = 'completada'";
+    if ($usuarioId !== null) {
+        $whereIngresos .= " AND v.usuario_id = :usuario_id";
+    }
+
     // 1. Suma de ingresos en caja del día (monto_caja; si no existe la columna, usar total)
     $stmtIngresos = $pdo->prepare(
         "SELECT COALESCE(SUM(COALESCE(v.monto_caja, v.total)), 0) AS ingresos_dia
          FROM ventas v
-         WHERE DATE(v.fecha_venta) = :fecha
-           AND v.estado = 'completada'"
+         $whereIngresos"
     );
-    $stmtIngresos->execute([':fecha' => $fecha]);
+    $paramsIngresos = [':fecha' => $fecha];
+    if ($usuarioId !== null) {
+        $paramsIngresos[':usuario_id'] = $usuarioId;
+    }
+    $stmtIngresos->execute($paramsIngresos);
     $ingresosVentas = (float) $stmtIngresos->fetchColumn();
 
     $stmtCuotas = $pdo->prepare(
@@ -73,17 +85,32 @@ try {
     }, $stmtCuotasLista->fetchAll());
 
     // 2. Cantidad de tratamientos realizados hoy (líneas de detalle completadas)
+    $whereTratamientos = " WHERE DATE(v.fecha_venta) = :fecha AND v.estado = 'completada'";
+    if ($usuarioId !== null) {
+        $whereTratamientos .= " AND v.usuario_id = :usuario_id";
+    }
+
     $stmtTratamientos = $pdo->prepare(
         "SELECT COUNT(vd.id) AS total_tratamientos
          FROM venta_detalles vd
          INNER JOIN ventas v ON vd.venta_id = v.id
-         WHERE DATE(v.fecha_venta) = :fecha
-           AND v.estado = 'completada'"
+         $whereTratamientos"
     );
-    $stmtTratamientos->execute([':fecha' => $fecha]);
+    $paramsTratamientos = [':fecha' => $fecha];
+    if ($usuarioId !== null) {
+        $paramsTratamientos[':usuario_id'] = $usuarioId;
+    }
+    $stmtTratamientos->execute($paramsTratamientos);
     $totalTratamientos = (int) $stmtTratamientos->fetchColumn();
 
     // 3. Desglose de ventas por doctor del día (solo 'completada')
+    $filtroAsistenteDoc1 = '';
+    $filtroAsistenteDoc2 = '';
+    if ($usuarioId !== null) {
+        $filtroAsistenteDoc1 = " AND v.usuario_id = :usuario_id1";
+        $filtroAsistenteDoc2 = " AND v.usuario_id = :usuario_id2";
+    }
+
     $stmtPorDoctor = $pdo->prepare(
         "SELECT
             d.nombre       AS doctor,
@@ -97,18 +124,25 @@ try {
             INNER JOIN venta_detalles vd ON vd.venta_id = v.id
             WHERE DATE(v.fecha_venta) = :fecha
               AND v.estado = 'completada'
+              $filtroAsistenteDoc1
             GROUP BY v.doctor_id
          ) t ON t.doctor_id = d.id
          INNER JOIN (
             SELECT doctor_id, SUM(total) AS total
-            FROM ventas
-            WHERE DATE(fecha_venta) = :fecha2
-              AND estado = 'completada'
-            GROUP BY doctor_id
+            FROM ventas v
+            WHERE DATE(v.fecha_venta) = :fecha2
+              AND v.estado = 'completada'
+              $filtroAsistenteDoc2
+            GROUP BY v.doctor_id
          ) tg ON tg.doctor_id = d.id
          ORDER BY total DESC"
     );
-    $stmtPorDoctor->execute([':fecha' => $fecha, ':fecha2' => $fecha]);
+    $paramsPorDoctor = [':fecha' => $fecha, ':fecha2' => $fecha];
+    if ($usuarioId !== null) {
+        $paramsPorDoctor[':usuario_id1'] = $usuarioId;
+        $paramsPorDoctor[':usuario_id2'] = $usuarioId;
+    }
+    $stmtPorDoctor->execute($paramsPorDoctor);
     $ventasPorDoctor = array_map(function ($row) {
         return [
             'doctor'       => $row['doctor'],
