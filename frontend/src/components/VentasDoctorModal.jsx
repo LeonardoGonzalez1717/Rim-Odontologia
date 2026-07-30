@@ -12,7 +12,7 @@ import { usePaginacion } from '../hooks/usePaginacion'
 import { fmt } from '../utils/reportesPrint'
 import { formatearFechaLarga } from '../utils/fechas'
 
-const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
+const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClose }) => {
   const [ventas, setVentas] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -22,7 +22,7 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
     setLoading(true)
     setError('')
     try {
-      const res = await getVentas({ fecha, pagina: 1, por_pagina: 50 })
+      const res = await getVentas({ fecha, pagina: 1, por_pagina: 50, usuario_id: asistenteSeleccionado })
       const delDoctor = (res.ventas ?? []).filter((v) => v.doctor === doctor.doctor)
       setVentas(delDoctor)
     } catch (err) {
@@ -30,7 +30,7 @@ const VentasDoctorModal = ({ doctor, fecha, onClose }) => {
     } finally {
       setLoading(false)
     }
-  }, [doctor, fecha])
+  }, [doctor, fecha, asistenteSeleccionado])
 
   useEffect(() => {
     cargar()

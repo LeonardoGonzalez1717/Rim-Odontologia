@@ -180,6 +180,61 @@ const abrirVentanaImpresion = (titulo, contenido, nombreVentana) => {
   ventana.focus()
 }
 
+/**
+ * Igual que abrirVentanaImpresion pero lanza window.print() de forma automática
+ * tan pronto el contenido está listo, sin mostrar reporte intermedio al usuario.
+ */
+const imprimirVentanaDirecta = (titulo, contenido, nombreVentana) => {
+  // Inyectamos un script que dispara print() automáticamente
+  const scriptAutoPrint = `<script>
+    (function () {
+      var img = document.querySelector('img.brand-logo');
+      function doPrint() {
+        window.focus();
+        window.print();
+      }
+      if (img && !img.complete) {
+        img.addEventListener('load', doPrint);
+        img.addEventListener('error', doPrint);
+        // Fallback por si el evento nunca llega
+        setTimeout(doPrint, 800);
+      } else {
+        setTimeout(doPrint, 150);
+      }
+    })();
+  <\/script>`
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>${esc(titulo)}</title>
+  <style>${PRINT_STYLES}</style>
+</head>
+<body>
+  ${contenido}
+  ${scriptAutoPrint}
+</body>
+</html>`
+
+  const ventana = window.open(
+    'about:blank',
+    nombreVentana,
+    'width=320,height=680,scrollbars=yes,resizable=yes',
+  )
+
+  if (!ventana) {
+    window.alert('Permite ventanas emergentes para imprimir el documento.')
+    return
+  }
+
+  const doc = ventana.document
+  doc.open()
+  doc.write(html)
+  doc.close()
+  ventana.focus()
+}
+
 const LOGO_URL = `${window.location.origin}/logoBlanco.png`
 
 const buildNotaEntregaContenido = (venta, { incluirBarraImpresion = true } = {}) => {
@@ -275,6 +330,19 @@ export const abrirNotaEntrega = (venta) => {
     'Nota de Entrega — Rim Challouf',
     buildNotaEntregaContenido(datos),
     `nota_${datos.id}`,
+  )
+}
+
+/**
+ * Imprime la nota de entrega directamente sin mostrar la ventana de previsualización.
+ * Abre el popup y dispara window.print() de forma automática.
+ */
+export const imprimirNotaEntrega = (venta) => {
+  const datos = prepararVentaParaNota(venta)
+  imprimirVentanaDirecta(
+    'Nota de Entrega — Rim Challouf',
+    buildNotaEntregaContenido(datos, { incluirBarraImpresion: false }),
+    `imprimir_nota_${datos.id}`,
   )
 }
 

@@ -211,7 +211,12 @@ const Dashboard = ({
       {/* ── Fila 2: Ventas por Doctor + Ventas Recientes + Cuotas Cashea ── */}
       <div className="grid grid-cols-1 gap-5">
         <div>
-          <VentasPorDoctor datos={datos.ventas_por_doctor ?? []} fecha={fechaVentas} />
+          <VentasPorDoctor
+            datos={datos.ventas_por_doctor ?? []}
+            fecha={fechaVentas}
+            asistentes={asistentes}
+            asistenteSeleccionado={asistenteSeleccionado}
+          />
         </div>
 
         <div>

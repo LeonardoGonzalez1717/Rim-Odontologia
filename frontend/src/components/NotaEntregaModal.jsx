@@ -3,8 +3,8 @@
 // Modal tras registrar una venta: imprimir o descargar la nota de entrega.
 // =============================================================================
 import React, { useEffect, useState } from 'react'
-import { X, Printer, Download, CheckCircle2, FileText, Loader2 } from 'lucide-react'
-import { abrirNotaEntrega, descargarNotaEntrega, fmt } from '../utils/reportesPrint'
+import { X, Printer, Download, CheckCircle2, FileText, Loader2, Calendar } from 'lucide-react'
+import { abrirNotaEntrega, imprimirNotaEntrega, descargarNotaEntrega, fmt } from '../utils/reportesPrint'
 
 const NotaEntregaModal = ({ venta, onClose }) => {
   const [descargando, setDescargando] = useState(false)
@@ -35,6 +35,17 @@ const NotaEntregaModal = ({ venta, onClose }) => {
   const lineas = venta.servicios?.length
     ? venta.servicios
     : [{ nombre: venta.servicio, precio: venta.total }]
+
+  // Formatea "2026-07-30 13:33:00" → "30/07/2026 · 13:33"
+  const fechaTexto = (() => {
+    const raw = venta.fecha_venta || ''
+    if (!raw) return null
+    const [fecha, hora] = raw.split(' ')
+    if (!fecha) return null
+    const [y, m, d] = fecha.split('-')
+    const horaCorta = hora ? hora.slice(0, 5) : ''
+    return `${d}/${m}/${y}${horaCorta ? ' · ' + horaCorta : ''}`
+  })()
 
   return (
     <div
@@ -74,6 +85,12 @@ const NotaEntregaModal = ({ venta, onClose }) => {
           </div>
 
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2">
+            {fechaTexto && (
+              <p className="text-xs text-slate-400 flex items-center gap-1.5 pb-1 border-b border-slate-200">
+                <Calendar size={12} className="text-pink-400" />
+                {fechaTexto}
+              </p>
+            )}
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-slate-700">Cliente:</span>{' '}
               {venta.cliente || '—'}
@@ -130,7 +147,7 @@ const NotaEntregaModal = ({ venta, onClose }) => {
           </button>
           <button
             type="button"
-            onClick={() => abrirNotaEntrega(venta)}
+            onClick={() => imprimirNotaEntrega(venta)}
             className="btn-primary flex-1 flex items-center justify-center gap-2 order-1 sm:order-3"
           >
             <Printer size={16} />

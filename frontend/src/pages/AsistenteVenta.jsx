@@ -369,6 +369,7 @@ const AsistenteVenta = () => {
           <div>
             <h1 className="text-base font-bold text-slate-800">Rim Challouf</h1>
             <p className="text-xs text-slate-400">Asistente de ventas</p>
+            <p className="text-xs text-pink-500 font-medium mt-0.5">{formatearDMA(hoyServidor)}</p>
           </div>
         </div>
 

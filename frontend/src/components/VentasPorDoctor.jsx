@@ -20,12 +20,17 @@ const avatarColors = [
   'bg-rose-400',
 ]
 
-const VentasPorDoctor = ({ datos = [], fecha }) => {
+const VentasPorDoctor = ({ datos = [], fecha, asistentes = [], asistenteSeleccionado = null }) => {
   const [doctorSeleccionado, setDoctorSeleccionado] = useState(null)
   const totalGlobal = datos.reduce((sum, d) => sum + d.total, 0)
   const etiquetaFecha = fecha
     ? (esHoy(fecha) ? 'Hoy' : formatearFechaCorta(fecha))
     : 'Hoy'
+
+  // Nombre del asistente activo (null cuando se ve "Todos")
+  const asistenteNombre = asistenteSeleccionado != null
+    ? (asistentes.find((a) => a.id === asistenteSeleccionado)?.nombre ?? null)
+    : null
 
   const {
     itemsPaginados: doctoresPagina,
@@ -58,6 +63,8 @@ const VentasPorDoctor = ({ datos = [], fecha }) => {
         <VentasDoctorModal
           doctor={doctorSeleccionado}
           fecha={fecha}
+          asistenteSeleccionado={asistenteSeleccionado}
+          asistenteNombre={asistenteNombre}
           onClose={() => setDoctorSeleccionado(null)}
         />
       )}
