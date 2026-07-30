@@ -44,7 +44,7 @@ const RegistrarVentaModal = ({
   clientes = [],
   onRecargarClientes,
 }) => {
-  const { cargando, error: errorServidor } = useServerDate()
+  const { cargando } = useServerDate()
   const [form, setForm] = useState(crearEstadoInicial)
 
   // Mantener #fecha_venta siempre con la hora del servidor/internet (nunca la del PC)
@@ -343,7 +343,7 @@ const RegistrarVentaModal = ({
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
-    if (errorServidor) return errorServidor
+    if (cargando) return 'Esperando la hora del servidor…'
     if (!form.fecha_venta) return 'Esperando la hora del servidor. Verifica tu conexión a Internet.'
     if (total <= 0) return 'El monto debe ser mayor a $0.'
     if (tieneCashea) {

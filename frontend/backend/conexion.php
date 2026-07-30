@@ -168,8 +168,18 @@ function obtenerFechaHoraInternet(): array
         }
     }
 
+    // 5. Fallback: hora del servidor de hosting (NTP). No usa la hora del PC del cliente.
     if (!$timestamp) {
-        throw new RuntimeException("Error: No se pudo obtener la fecha y hora de Internet. Por favor, verifica la conexión y recarga la página.");
+        $dt = new DateTime('now', new DateTimeZone($timezone));
+        return [
+            'timestamp'    => $dt->getTimestamp(),
+            'fecha'        => $dt->format('Y-m-d'),
+            'datetime'     => $dt->format('Y-m-d H:i:s'),
+            'timezone'     => $timezone,
+            'offset'       => $dt->getOffset(),
+            'synchronized' => false,
+            'source'       => 'server_php',
+        ];
     }
 
     $dt = new DateTime();
