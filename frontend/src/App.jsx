@@ -179,6 +179,13 @@ function AdminApp() {
   const [paginaVentas, setPaginaVentas] = useState(1)
   const { hoy: hoyServidor } = useServerDate()
   const [fechaVentas, setFechaVentas] = useState(hoyServidor)
+
+  React.useEffect(() => {
+    if (hoyServidor && !fechaVentas) {
+      setFechaVentas(hoyServidor)
+    }
+  }, [hoyServidor, fechaVentas])
+
   const [loadingVentas, setLoadingVentas] = useState(true)
   const paginaVentasRef = useRef(1)
   const fechaVentasRef = useRef(fechaVentas)
@@ -575,7 +582,31 @@ function AdminApp() {
 // =============================================================================
 function App() {
   const { user, isAsistente } = useAuth()
+  const { error: errorServidor } = useServerDate()
 
+  if (errorServidor) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white px-4 text-center">
+        <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-slate-700">
+          <div className="text-pink-500 mb-4 flex justify-center">
+            <svg className="w-16 h-16 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Error de Sincronización</h2>
+          <p className="text-slate-300 text-sm mb-6 leading-relaxed">
+            {errorServidor}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white font-semibold py-2.5 px-4 rounded-xl transition duration-150 shadow-md"
+          >
+            Recargar Página
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) return <Login />
   if (isAsistente) return (

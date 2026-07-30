@@ -66,3 +66,125 @@ function asegurarColumnaUsuario(PDO $pdo): void
     }
 }
 
+/**
+ * Obtiene la fecha y hora oficial de Internet usando APIs de hora redundantes
+ * y una consulta de cabecera HTTP Date como último recurso infalible.
+ * Evita depender de la hora local de la computadora (servidor/cliente).
+ *
+ * @return array
+ */
+function obtenerFechaHoraInternet(): array
+{
+    $timezone = 'America/New_York';
+    $timestamp = null;
+    $metodo = 'ninguno';
+
+    // 1. Intentar obtener de Google (cabecera Date de HTTP, extremadamente precisa y confiable)
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://www.google.com");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_NOBODY, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Cache-Control: no-cache", "Pragma: no-cache"]);
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    if ($response && preg_match('/^[Dd]ate:\s*(.*?)$/m', $response, $matches)) {
+        $dateStr = trim($matches[1]);
+        $t = strtotime($dateStr);
+        if ($t !== false) {
+            $timestamp = $t;
+            $metodo = 'http_header_google';
+        }
+    }
+
+    // 2. Intentar obtener de Cloudflare (cabecera Date de HTTP) si Google falla
+    if (!$timestamp) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://1.1.1.1");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Cache-Control: no-cache", "Pragma: no-cache"]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        if ($response && preg_match('/^[Dd]ate:\s*(.*?)$/m', $response, $matches)) {
+            $dateStr = trim($matches[1]);
+            $t = strtotime($dateStr);
+            if ($t !== false) {
+                $timestamp = $t;
+                $metodo = 'http_header_cloudflare';
+            }
+        }
+    }
+
+    // 3. Intentar WorldTimeAPI (JSON) si los anteriores fallan
+    if (!$timestamp) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "http://worldtimeapi.org/api/timezone/" . $timezone);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Cache-Control: no-cache", "Pragma: no-cache"]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['unixtime'])) {
+                $timestamp = (int)$data['unixtime'];
+                $metodo = 'worldtimeapi';
+            }
+        }
+    }
+
+    // 4. Intentar TimeAPI si los anteriores fallan
+    if (!$timestamp) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://timeapi.io/api/Time/current/zone?timeZone=" . $timezone);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Cache-Control: no-cache", "Pragma: no-cache"]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['dateTime'])) {
+                try {
+                    $dt = new DateTime($data['dateTime'], new DateTimeZone($timezone));
+                    $timestamp = $dt->getTimestamp();
+                    $metodo = 'timeapi';
+                } catch (Throwable $e) {
+                    // Ignorar error de parsing
+                }
+            }
+        }
+    }
+
+    if (!$timestamp) {
+        throw new RuntimeException("Error: No se pudo obtener la fecha y hora de Internet. Por favor, verifica la conexión y recarga la página.");
+    }
+
+    $dt = new DateTime();
+    $dt->setTimezone(new DateTimeZone($timezone));
+    $dt->setTimestamp($timestamp);
+
+    return [
+        'timestamp'    => $timestamp,
+        'fecha'        => $dt->format('Y-m-d'),
+        'datetime'     => $dt->format('Y-m-d H:i:s'),
+        'timezone'     => $timezone,
+        'offset'       => $dt->getOffset(),
+        'synchronized' => true,
+        'source'       => $metodo,
+    ];
+}
+
+

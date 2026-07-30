@@ -77,7 +77,8 @@ try {
         $modo         = 'historial';
         $fecha        = null;
     } else {
-        $fecha = trim($_GET['fecha'] ?? date('Y-m-d'));
+        $infoInternet = obtenerFechaHoraInternet();
+        $fecha = trim($_GET['fecha'] ?? $infoInternet['fecha']);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Formato de fecha inválido. Use YYYY-MM-DD.']);

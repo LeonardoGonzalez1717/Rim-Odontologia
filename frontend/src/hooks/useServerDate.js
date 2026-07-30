@@ -1,10 +1,9 @@
-﻿// =============================================================================
+// =============================================================================
 // hooks/useServerDate.js
 // Obtiene la fecha actual desde el servidor PHP para evitar depender del
 // reloj local del cliente (que puede estar mal configurado).
 // =============================================================================
 import { useState, useEffect } from 'react'
-import { hoyISO } from '../utils/fechas'
 
 const API_BASE = import.meta.env.DEV
   ? '/api'
@@ -15,19 +14,12 @@ let _cached = null
 let _promise = null
 let _timeOffsetMs = 0          // Diferencia (Servidor UTC - Cliente Local UTC)
 let _serverTimezoneOffsetMs = 0 // Offset del servidor (ej. America/New_York)
-
-/** Devuelve YYYY-MM-DDTHH:mm usando la hora local del cliente (fallback) */
-const getLocalDatetime = () => {
-  const ahora = new Date()
-  const offsetMs = ahora.getTimezoneOffset() * 60 * 1000
-  const local = new Date(ahora.getTime() - offsetMs)
-  return local.toISOString().slice(0, 16)
-}
+let _syncError = null
 
 /** Devuelve la fecha/hora actual del servidor en tiempo real (calculada) */
 export const getActualServerDatetime = () => {
   if (_timeOffsetMs === 0 && _serverTimezoneOffsetMs === 0) {
-    return getLocalDatetime() // No sincronizado aún
+    return '' // No sincronizado aún
   }
   // Hora UTC actual real (asumiendo que _timeOffsetMs corrige el reloj del cliente)
   const currentUtcMs = Date.now() + _timeOffsetMs
@@ -38,7 +30,8 @@ export const getActualServerDatetime = () => {
 
 /** Devuelve la fecha "YYYY-MM-DD" actual del servidor en tiempo real */
 export const getActualServerDate = () => {
-  return getActualServerDatetime().slice(0, 10)
+  const dt = getActualServerDatetime()
+  return dt ? dt.slice(0, 10) : ''
 }
 
 async function fetchServerDate() {
@@ -46,20 +39,27 @@ async function fetchServerDate() {
 
   if (!_promise) {
     _promise = fetch(`${API_BASE}/server_date.php`, { cache: 'no-store' })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error('No se pudo establecer conexión con el servidor de fecha y hora.')
+        }
+        return r.json()
+      })
       .then((data) => {
         if (data?.success && data?.timestamp !== undefined) {
           _timeOffsetMs = data.timestamp - Date.now()
           _serverTimezoneOffsetMs = data.timezone_offset || 0
           _cached = getActualServerDate()
+          _syncError = null
         } else {
-          _cached = hoyISO()
+          throw new Error(data?.message || 'La respuesta del servidor de fecha y hora es inválida.')
         }
         return _cached
       })
-      .catch(() => {
-        _cached = hoyISO()
-        return _cached
+      .catch((err) => {
+        _syncError = err.message || 'Error de sincronización con Internet.'
+        _cached = null
+        return null
       })
   }
 
@@ -67,30 +67,42 @@ async function fetchServerDate() {
 }
 
 export function useServerDate() {
-  const [hoy, setHoy] = useState(() => _cached ?? hoyISO())
-  // El datetime inicial de cuando se llama al hook
-  const [datetime, setDatetime] = useState(() => getActualServerDatetime())
+  const [hoy, setHoy] = useState(() => _cached ?? '')
+  const [datetime, setDatetime] = useState(() => _cached ? getActualServerDatetime() : '')
   const [cargando, setCargando] = useState(!_cached)
+  const [error, setError] = useState(_syncError)
 
   useEffect(() => {
     if (_cached) {
       setHoy(getActualServerDate())
       setDatetime(getActualServerDatetime())
+      setError(null)
+      setCargando(false)
+      return
+    }
+
+    if (_syncError) {
+      setError(_syncError)
       setCargando(false)
       return
     }
 
     let activo = true
     setCargando(true)
-    fetchServerDate().then(() => {
+    fetchServerDate().then((res) => {
       if (activo) {
-        setHoy(getActualServerDate())
-        setDatetime(getActualServerDatetime())
+        if (res) {
+          setHoy(getActualServerDate())
+          setDatetime(getActualServerDatetime())
+          setError(null)
+        } else {
+          setError(_syncError || 'Error de sincronización de hora.')
+        }
         setCargando(false)
       }
     })
     return () => { activo = false }
   }, [])
 
-  return { hoy, datetime, cargando }
+  return { hoy, datetime, cargando, error }
 }
