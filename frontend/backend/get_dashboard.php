@@ -117,7 +117,8 @@ try {
             d.nombre       AS doctor,
             d.especialidad AS especialidad,
             COALESCE(t.cantidad, 0) AS cantidad,
-            COALESCE(tg.total, 0)   AS total
+            COALESCE(tg.total, 0)   AS total,
+            COALESCE(tg.tiene_cashea, 0) AS tiene_cashea
          FROM doctores d
          INNER JOIN (
             SELECT v.doctor_id, COUNT(vd.id) AS cantidad
@@ -129,7 +130,9 @@ try {
             GROUP BY v.doctor_id
          ) t ON t.doctor_id = d.id
          INNER JOIN (
-            SELECT doctor_id, SUM(total) AS total
+            SELECT doctor_id,
+                   SUM(COALESCE(v.monto_caja, v.total)) AS total,
+                   MAX(CASE WHEN v.cashea = 1 THEN 1 ELSE 0 END) AS tiene_cashea
             FROM ventas v
             WHERE DATE(v.fecha_venta) = :fecha2
               AND v.estado = 'completada'
@@ -150,6 +153,7 @@ try {
             'especialidad' => $row['especialidad'],
             'cantidad'     => (int)   $row['cantidad'],
             'total'        => (float) $row['total'],
+            'tiene_cashea' => (bool)  $row['tiene_cashea'],
         ];
     }, $stmtPorDoctor->fetchAll());
 

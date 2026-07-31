@@ -166,10 +166,18 @@ const ReporteDiario = ({ onToast }) => {
                           <td className="px-6 py-3 text-sm text-slate-500">{d.especialidad}</td>
                           <td className="px-6 py-3 text-sm text-slate-600">{d.cantidad}</td>
                           <td className="px-6 py-3">
-                            <span className="text-sm font-bold text-pink-700 bg-pink-50
-                                             px-2.5 py-1 rounded-lg border border-pink-100">
-                              {fmt(d.total)}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-pink-700 bg-pink-50
+                                               px-2.5 py-1 rounded-lg border border-pink-100">
+                                {fmt(d.total)}
+                              </span>
+                              {d.tiene_cashea && (
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full bg-amber-400 border border-amber-500/20 shadow-sm"
+                                  title="Incluye ventas realizadas con Cashea"
+                                />
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

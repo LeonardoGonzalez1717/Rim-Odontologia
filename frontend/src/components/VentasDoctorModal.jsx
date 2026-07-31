@@ -43,7 +43,7 @@ const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClos
   }, [onClose])
 
   const completadas = ventas.filter((v) => v.estado === 'completada')
-  const totalVendido = completadas.reduce((sum, v) => sum + (v.cashea ? v.total : (v.monto_caja ?? v.total)), 0)
+  const totalVendido = completadas.reduce((sum, v) => sum + (v.monto_caja ?? v.total), 0)
 
   const {
     itemsPaginados: ventasPagina,
@@ -63,7 +63,7 @@ const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClos
                  bg-slate-900/50 backdrop-blur-sm animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh]
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh]
                       flex flex-col animate-scale-in">
         <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -129,18 +129,27 @@ const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClos
           ) : (
             <>
               <div className="overflow-x-auto -mx-1">
-                <table className="w-full min-w-[520px]">
+                <table className="w-full min-w-[620px]">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {['Hora', 'Cliente', 'Tratamiento', 'Monto', 'Estado'].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left text-xs font-semibold text-slate-400 uppercase
-                                     tracking-wider pb-3 pr-3"
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-3">
+                        Hora
+                      </th>
+                      <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-3">
+                        Cliente
+                      </th>
+                      <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-3">
+                        Tratamiento
+                      </th>
+                      <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-3">
+                        Monto en caja
+                      </th>
+                      <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-3">
+                        Total venta
+                      </th>
+                      <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                        Estado
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -171,19 +180,46 @@ const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClos
                               <span className="text-sm text-slate-600">{venta.servicio}</span>
                             )}
                           </td>
-                          <td className="py-3.5 pr-3">
-                            <div className="flex flex-col">
-                              <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {fmt(venta.cashea ? venta.total : (venta.monto_caja ?? venta.total))}
-                              </span>
-                              {venta.cashea && (
-                                <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">
-                                  Cashea
+
+                          {/* Monto en caja */}
+                          <td className="py-3.5 pr-3 text-right">
+                            <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                              {venta.cashea ? (
+                                <>
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                    Cashea
+                                  </span>
+                                  <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                    {fmt(venta.monto_caja ?? venta.total)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                  {fmt(venta.total)}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-3.5">
+
+                          {/* Total venta */}
+                          <td className="py-3.5 pr-3 text-right">
+                            {venta.cashea ? (
+                              <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                                <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                  {fmt(venta.total)}
+                                </span>
+                                {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
+                                  <span className="text-[11px] font-semibold text-amber-700">
+                                    Debe {fmt(venta.deuda_restante)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-slate-300">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 text-center">
                             {esCancelada ? (
                               <span className="badge badge-cancelada gap-1">
                                 <XCircle size={11} /> Cancelada

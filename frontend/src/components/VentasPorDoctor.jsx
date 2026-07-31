@@ -114,9 +114,17 @@ const VentasPorDoctor = ({ datos = [], fecha, asistentes = [], asistenteSeleccio
                   <span className="text-sm font-semibold text-slate-700 truncate pr-2">
                     {item.doctor}
                   </span>
-                  <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
-                    {formatCurrency(item.total)}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {item.tiene_cashea && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full bg-amber-400 border border-amber-500/20 shadow-sm"
+                        title="Incluye ventas realizadas con Cashea"
+                      />
+                    )}
+                    <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
+                      {formatCurrency(item.total)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
