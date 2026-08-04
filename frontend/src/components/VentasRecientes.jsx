@@ -231,26 +231,25 @@ const VentasRecientes = ({
                       {/* Monto en caja */}
                       <td className="py-3.5 pr-4 text-right pl-8">
                         <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
-                          {venta.cashea ? (
-                            <>
-                              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                Cashea
-                              </span>
-                              <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {formatCurrency(venta.monto_caja ?? venta.total)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {formatCurrency(venta.total)}
+                          {venta.cashea && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              Cashea
                             </span>
                           )}
+                          {!venta.cashea && ((venta.deuda_restante ?? 0) > 0.001 || venta.tiene_saldo_favor) && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                              Saldo a favor
+                            </span>
+                          )}
+                          <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                            {formatCurrency(venta.monto_caja ?? venta.total)}
+                          </span>
                         </div>
                       </td>
 
                       {/* Total venta */}
                       <td className="py-3.5 pr-4 text-right pl-8">
-                        {venta.cashea ? (
+                        {(venta.cashea || (venta.deuda_restante ?? 0) > 0.001) ? (
                           <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
                             <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                               {formatCurrency(venta.total)}

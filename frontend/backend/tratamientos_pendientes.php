@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 try {
     $pdo = obtenerConexion();
@@ -25,10 +26,14 @@ try {
         $stmt = $pdo->query(
             "SELECT
                 vd.id,
+                vd.servicio_id,
                 vd.precio,
                 COALESCE(vd.realizado, 1) AS realizado,
+                COALESCE(vd.pagado, 1) AS pagado,
                 s.nombre_servicio AS nombre,
                 v.id AS venta_id,
+                v.doctor_id,
+                d.nombre AS doctor_nombre,
                 DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha,
                 c.id AS cliente_id,
                 c.nombre AS cliente_nombre,
@@ -38,8 +43,10 @@ try {
              INNER JOIN ventas v ON v.id = vd.venta_id
              INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
              INNER JOIN clientes c ON c.id = v.cliente_id
+             INNER JOIN doctores d ON d.id = v.doctor_id
              WHERE v.estado = 'completada'
                AND vd.realizado = 0
+               AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
              ORDER BY c.nombre ASC, v.fecha_venta DESC, vd.id ASC"
         );
 
@@ -59,11 +66,15 @@ try {
 
             $precio = (float) $row['precio'];
             $porCliente[$clienteId]['tratamientos'][] = [
-                'id'       => (int) $row['id'],
-                'venta_id' => (int) $row['venta_id'],
-                'nombre'   => $row['nombre'],
-                'precio'   => $precio,
-                'fecha'    => $row['fecha'],
+                'id'            => (int) $row['id'],
+                'servicio_id'   => (int) $row['servicio_id'],
+                'venta_id'      => (int) $row['venta_id'],
+                'doctor_id'     => (int) $row['doctor_id'],
+                'doctor_nombre' => $row['doctor_nombre'],
+                'nombre'        => $row['nombre'],
+                'precio'        => $precio,
+                'fecha'         => $row['fecha'],
+                'pagado'        => (int) $row['pagado'] === 1,
             ];
             $porCliente[$clienteId]['total_pendiente'] += $precio;
         }

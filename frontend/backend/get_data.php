@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 try {
     $pdo = obtenerConexion();
@@ -54,13 +55,45 @@ try {
               WHERE v.cliente_id = c.id
                 AND v.cashea     = 1
                 AND v.estado     = 'completada'
-                AND (v.total - v.monto_caja - COALESCE(
-                      (SELECT SUM(a.monto)
-                       FROM ajustes_cashea a
-                       WHERE a.concepto LIKE CONCAT('Abono Cashea – venta #', v.id, ' –%')
-                      ), 0
-                    )) > 0.001
+                AND (
+                  v.total - v.monto_caja - COALESCE(
+                    (SELECT SUM(a.monto)
+                     FROM ajustes_cashea a
+                     WHERE a.concepto LIKE CONCAT('Abono%venta #', v.id, ' –%')
+                    ), 0
+                  ) - COALESCE(
+                    (SELECT SUM(vd.precio)
+                     FROM venta_detalles vd
+                     WHERE vd.venta_id = v.id
+                       AND COALESCE(vd.realizado, 1) = 0
+                       AND COALESCE(vd.cashea, 0) = 0
+                       AND COALESCE(vd.pagado, 1) = 0
+                       AND EXISTS (
+                         SELECT 1 FROM venta_detalles vc
+                         WHERE vc.venta_id = v.id AND COALESCE(vc.cashea, 0) = 1
+                       )
+                    ), 0
+                  )
+                ) > 0.001
             ) AS tiene_deuda_cashea,
+            EXISTS (
+              SELECT 1
+              FROM venta_detalles vd
+              INNER JOIN ventas v ON v.id = vd.venta_id
+              WHERE v.cliente_id = c.id
+                AND v.estado = 'completada'
+                AND COALESCE(vd.realizado, 1) = 0
+                AND COALESCE(vd.pagado, 1) = 0
+            ) AS tiene_saldo_pendiente_cobro,
+            COALESCE((
+              SELECT SUM(vd.precio)
+              FROM venta_detalles vd
+              INNER JOIN ventas v ON v.id = vd.venta_id
+              WHERE v.cliente_id = c.id
+                AND v.estado = 'completada'
+                AND COALESCE(vd.realizado, 1) = 0
+                AND COALESCE(vd.pagado, 1) = 0
+            ), 0) AS saldo_pendiente_cobro,
             COALESCE((
               SELECT SUM(vd.precio)
               FROM venta_detalles vd
@@ -68,6 +101,8 @@ try {
               WHERE v.cliente_id = c.id
                 AND v.estado = 'completada'
                 AND vd.realizado = 0
+                AND COALESCE(vd.pagado, 1) = 1
+                AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
             ), 0) AS saldo_a_favor
          FROM clientes c
          WHERE c.estado = 'activo'
@@ -76,11 +111,14 @@ try {
     $clientes = array_map(
         function ($c) {
             $saldo = round((float) $c['saldo_a_favor'], 2);
+            $saldoPendienteCobro = round((float) $c['saldo_pendiente_cobro'], 2);
             return [
                 ...$c,
-                'tiene_deuda_cashea'  => (bool) $c['tiene_deuda_cashea'],
-                'saldo_a_favor'       => $saldo,
-                'tiene_saldo_a_favor' => $saldo > 0.001,
+                'tiene_deuda_cashea'          => (bool) $c['tiene_deuda_cashea'],
+                'tiene_saldo_pendiente_cobro' => (bool) $c['tiene_saldo_pendiente_cobro'],
+                'saldo_pendiente_cobro'       => $saldoPendienteCobro,
+                'saldo_a_favor'               => $saldo,
+                'tiene_saldo_a_favor'         => $saldo > 0.001,
             ];
         },
         $stmtClientes->fetchAll()

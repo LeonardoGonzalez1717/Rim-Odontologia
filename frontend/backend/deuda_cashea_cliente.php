@@ -65,13 +65,26 @@ try {
             COALESCE(
               (SELECT SUM(a.monto)
                FROM ajustes_cashea a
-               WHERE a.concepto LIKE CONCAT('Abono Cashea – venta #', v.id, ' –%')
+               WHERE a.concepto LIKE CONCAT('Abono%venta #', v.id, ' –%')
               ), 0
             )                                       AS pagos_posteriores,
+            COALESCE(
+              (SELECT SUM(vd.precio)
+               FROM venta_detalles vd
+               WHERE vd.venta_id = v.id
+                 AND COALESCE(vd.realizado, 1) = 0
+                 AND COALESCE(vd.cashea, 0) = 0
+                 AND COALESCE(vd.pagado, 1) = 0
+                 AND EXISTS (
+                   SELECT 1 FROM venta_detalles vc
+                   WHERE vc.venta_id = v.id AND COALESCE(vc.cashea, 0) = 1
+                 )
+              ), 0
+            )                                       AS saldo_pendiente_pago,
             (v.total - v.monto_caja - COALESCE(
               (SELECT SUM(a.monto)
                FROM ajustes_cashea a
-               WHERE a.concepto LIKE CONCAT('Abono Cashea – venta #', v.id, ' –%')
+               WHERE a.concepto LIKE CONCAT('Abono%venta #', v.id, ' –%')
               ), 0
             ))                                      AS deuda_restante
          FROM ventas v
@@ -84,24 +97,34 @@ try {
     $stmt->execute([':cliente_id' => $clienteId]);
 
     $ventas = array_map(function ($row) {
+        $deudaRestante     = round((float) $row['deuda_restante'], 2);
+        $saldoPendiente    = round((float) $row['saldo_pendiente_pago'], 2);
+        $deudaFinanciada   = round(max(0, $deudaRestante - $saldoPendiente), 2);
+
         return [
-            'id'                 => (int)   $row['id'],
-            'fecha'              => $row['fecha'],
-            'total'              => (float) $row['total'],
-            'monto_caja_inicial' => (float) $row['monto_caja_inicial'],
-            'pagos_posteriores'  => (float) $row['pagos_posteriores'],
-            'deuda_restante'     => round((float) $row['deuda_restante'], 2),
-            'descripcion_cashea' => $row['descripcion_cashea'],
+            'id'                   => (int)   $row['id'],
+            'fecha'                => $row['fecha'],
+            'total'                => (float) $row['total'],
+            'monto_caja_inicial'   => (float) $row['monto_caja_inicial'],
+            'pagos_posteriores'    => (float) $row['pagos_posteriores'],
+            'deuda_restante'       => $deudaRestante,
+            'saldo_pendiente_pago' => $saldoPendiente,
+            'deuda_financiada'     => $deudaFinanciada,
+            'descripcion_cashea'   => $row['descripcion_cashea'],
         ];
     }, $stmt->fetchAll());
 
-    $deudaTotal = array_reduce($ventas, fn($carry, $v) => $carry + $v['deuda_restante'], 0.0);
+    $deudaTotal          = array_reduce($ventas, fn($carry, $v) => $carry + $v['deuda_restante'], 0.0);
+    $saldoPendienteTotal = array_reduce($ventas, fn($carry, $v) => $carry + $v['saldo_pendiente_pago'], 0.0);
+    $deudaFinanciadaTotal = array_reduce($ventas, fn($carry, $v) => $carry + $v['deuda_financiada'], 0.0);
 
     echo json_encode([
-        'success'       => true,
-        'cliente_id'    => $clienteId,
-        'deuda_total'   => round($deudaTotal, 2),
-        'ventas_cashea' => $ventas,
+        'success'              => true,
+        'cliente_id'           => $clienteId,
+        'deuda_total'          => round($deudaTotal, 2),
+        'saldo_pendiente_pago' => round($saldoPendienteTotal, 2),
+        'deuda_financiada'     => round($deudaFinanciadaTotal, 2),
+        'ventas_cashea'        => $ventas,
     ]);
 
 } catch (RuntimeException $e) {

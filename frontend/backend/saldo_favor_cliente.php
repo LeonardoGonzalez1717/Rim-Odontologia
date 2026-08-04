@@ -1,6 +1,6 @@
 <?php
 // =============================================================================
-// saldo_favor_cliente.php — Tratamientos pendientes (saldo a favor) de un cliente
+// saldo_favor_cliente.php — Tratamientos pendientes de un cliente (pagados o por cobrar)
 // Método: GET
 // Query: cliente_id
 // =============================================================================
@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 try {
     $clienteId = (int) ($_GET['cliente_id'] ?? 0);
@@ -37,6 +38,7 @@ try {
         "SELECT
             vd.id,
             vd.precio,
+            COALESCE(vd.pagado, 1) AS pagado,
             s.nombre_servicio AS nombre,
             v.id AS venta_id,
             DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha
@@ -45,7 +47,8 @@ try {
          INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
          WHERE v.cliente_id = :cliente_id
            AND v.estado = 'completada'
-           AND vd.realizado = 0
+           AND COALESCE(vd.realizado, 1) = 0
+           AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
          ORDER BY v.fecha_venta DESC, vd.id ASC"
     );
     $stmt->execute([':cliente_id' => $clienteId]);
@@ -57,16 +60,26 @@ try {
             'nombre'   => $row['nombre'],
             'precio'   => (float) $row['precio'],
             'fecha'    => $row['fecha'],
+            'pagado'   => (int) $row['pagado'] === 1,
         ];
     }, $stmt->fetchAll());
 
-    $total = array_reduce($tratamientos, fn($s, $t) => $s + $t['precio'], 0.0);
+    $saldoAFavor = 0.0;
+    $saldoPendienteCobro = 0.0;
+    foreach ($tratamientos as $t) {
+        if ($t['pagado']) {
+            $saldoAFavor += $t['precio'];
+        } else {
+            $saldoPendienteCobro += $t['precio'];
+        }
+    }
 
     echo json_encode([
-        'success'       => true,
-        'cliente_id'    => $clienteId,
-        'saldo_a_favor' => round($total, 2),
-        'tratamientos'  => $tratamientos,
+        'success'               => true,
+        'cliente_id'            => $clienteId,
+        'saldo_a_favor'         => round($saldoAFavor, 2),
+        'saldo_pendiente_cobro' => round($saldoPendienteCobro, 2),
+        'tratamientos'          => $tratamientos,
     ]);
 } catch (RuntimeException $e) {
     http_response_code(500);

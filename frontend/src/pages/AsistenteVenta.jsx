@@ -325,6 +325,8 @@ const AsistenteVenta = () => {
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
+  const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
   const [toast, setToast] = useState(null)
   const [ventaParaNota, setVentaParaNota] = useState(null)
@@ -347,10 +349,32 @@ const AsistenteVenta = () => {
     cargarDatos()
   }, [cargarDatos])
 
-  const handleVentaGuardada = (venta) => {
+  const handleVentaGuardada = useCallback((venta) => {
     setModalAbierto(false)
-    setVentaParaNota(venta)
-  }
+    setPagoPendienteInicial(null)
+    if (venta?.es_pago_pendiente) {
+      setPendientesReloadKey((k) => k + 1)
+      setToast({ mensaje: 'Pago del saldo pendiente registrado correctamente.' })
+    } else {
+      setVentaParaNota(venta)
+    }
+  }, [])
+
+  const handleRegistrarPagoPendiente = useCallback((pago) => {
+    setPagoPendienteInicial(pago)
+    setModalAbierto(true)
+  }, [])
+
+  const handleCerrarModalVenta = useCallback(() => {
+    setModalAbierto(false)
+    setPagoPendienteInicial(null)
+  }, [])
+
+  const handleToastPendientes = useCallback((msg) => {
+    setToast({ mensaje: msg })
+  }, [])
+
+  const handleVolverInicio = useCallback(() => setVista('inicio'), [])
 
   const handleClienteGuardado = async () => {
     setModalClienteAbierto(false)
@@ -474,8 +498,10 @@ const AsistenteVenta = () => {
 
         {vista === 'pendientes' && (
           <TratamientosPendientes
-            onVolver={() => setVista('inicio')}
-            onToast={(msg) => setToast({ mensaje: msg })}
+            onVolver={handleVolverInicio}
+            onToast={handleToastPendientes}
+            onRegistrarPago={handleRegistrarPagoPendiente}
+            reloadKey={pendientesReloadKey}
           />
         )}
 
@@ -490,12 +516,13 @@ const AsistenteVenta = () => {
 
       {modalAbierto && (
         <RegistrarVentaModal
-          onClose={() => setModalAbierto(false)}
+          onClose={handleCerrarModalVenta}
           onVentaGuardada={handleVentaGuardada}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}
           onRecargarClientes={cargarDatos}
+          pagoPendienteInicial={pagoPendienteInicial}
         />
       )}
 
