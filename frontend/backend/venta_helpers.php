@@ -122,9 +122,18 @@ function enriquecerVentasConServicios(PDO $pdo, array $ventas): array
         $servicios = $detalles[(int) $venta['id']] ?? [];
         $nombres   = array_column($servicios, 'nombre');
 
+        $tieneSaldoFavor = false;
+        foreach ($servicios as $s) {
+            if (isset($s['realizado']) && ($s['realizado'] === false || $s['realizado'] === 0 || $s['realizado'] === '0')) {
+                $tieneSaldoFavor = true;
+                break;
+            }
+        }
+
         return array_merge($venta, [
-            'servicios' => $servicios,
-            'servicio'  => implode(', ', $nombres),
+            'servicios'           => $servicios,
+            'servicio'            => implode(', ', $nombres),
+            'tiene_saldo_a_favor' => $tieneSaldoFavor,
         ]);
     }, $ventas);
 }

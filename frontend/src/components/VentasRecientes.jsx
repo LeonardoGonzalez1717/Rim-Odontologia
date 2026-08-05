@@ -7,12 +7,12 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, ExternalLink, UserCheck, User } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
-import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
+import { fmt as formatCurrency } from '../utils/reportesPrint'
 
 // -----------------------------------------------------------------------------
 // VentasRecientes — Componente principal
@@ -65,6 +65,12 @@ const VentasRecientes = ({
           venta={ventaDetalle}
           onClose={() => setDetalleId(null)}
           mostrarFecha={mostrarFecha}
+          soloLectura={soloLectura}
+          onSolicitarCancelacion={(id) => {
+            setDetalleId(null)
+            setConfirmandoId(id)
+          }}
+          cancelando={cancelando}
         />
       )}
 
@@ -98,8 +104,6 @@ const VentasRecientes = ({
           </div>
         </div>
 
-
-
         {/* Estado vacío */}
         {ventas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-slate-400">
@@ -109,7 +113,7 @@ const VentasRecientes = ({
         ) : (
           /* Tabla responsiva con scroll horizontal en móvil */
           <div className="overflow-x-auto -mx-6 px-6">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[750px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {mostrarFecha && (
@@ -127,35 +131,27 @@ const VentasRecientes = ({
                     Doctor
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                    Registrado por
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Servicio
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-8">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Monto en caja
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-8">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Total venta
                   </th>
                   <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Estado
                   </th>
-
-                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                    Nota
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Acciones
                   </th>
-                  {!soloLectura && (
-                    <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
-                      Acción
-                    </th>
-                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {ventas.map((venta) => {
                   const estaCancelando = cancelando === venta.id
                   const esCancelada = venta.estado === 'cancelada'
+                  const cantServicios = venta.servicios?.length ?? 1
 
                   return (
                     <tr
@@ -194,76 +190,50 @@ const VentasRecientes = ({
                         </span>
                       </td>
 
-                      {/* Registrado por */}
-                      <td className="py-3.5 pr-4">
-                        {venta.usuario_nombre ? (
-                          <div className="flex items-center gap-1.5">
-                            <User size={13} className="text-pink-400 flex-shrink-0" />
-                            <span className="text-sm text-slate-600">{venta.usuario_nombre}</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-slate-300">—</span>
-                        )}
-                      </td>
-
                       {/* Servicio(s) */}
                       <td className="py-3.5 pr-4">
-                        {venta.servicios?.length > 1 ? (
-                          <div className="flex flex-col items-start">
-                            <span className="text-sm text-slate-600 leading-tight">
-                              {venta.servicios[0].nombre}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setDetalleId(venta.id)}
-                              className="text-xs font-semibold text-pink-600 hover:text-pink-700 hover:underline transition-colors mt-1"
-                            >
-                              Ver más (+{venta.servicios.length - 1})
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-slate-600 leading-tight">
-                            {venta.servicio}
+                        <div className="flex items-center gap-1.5 max-w-[200px]">
+                          <span className="text-sm text-slate-600 leading-tight truncate">
+                            {venta.servicios?.length ? venta.servicios[0].nombre : (venta.servicio || '—')}
                           </span>
-                        )}
-                      </td>
-
-                      {/* Monto en caja */}
-                      <td className="py-3.5 pr-4 text-right pl-8">
-                        <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
-                          {venta.cashea ? (
-                            <>
-                              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                Cashea
-                              </span>
-                              <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {formatCurrency(venta.monto_caja ?? venta.total)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {formatCurrency(venta.total)}
+                          {cantServicios > 1 && (
+                            <span className="text-[10px] font-semibold text-pink-600 bg-pink-50 border border-pink-100 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                              +{cantServicios - 1} más
                             </span>
                           )}
                         </div>
                       </td>
 
+                      {/* Monto en caja */}
+                      <td className="py-3.5 pr-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {Boolean(venta.cashea) && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-100 flex-shrink-0"
+                              title="Venta con Cashea"
+                            />
+                          )}
+                          {Boolean(
+                            venta.tiene_saldo_a_favor === true ||
+                            venta.saldo_a_favor === true ||
+                            venta.servicios?.some((s) => s.realizado === false || s.realizado === 0 || s.realizado === '0')
+                          ) && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100 flex-shrink-0"
+                              title="Tiene saldo a favor (tratamiento pendiente)"
+                            />
+                          )}
+                          <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                            {formatCurrency(venta.monto_caja ?? venta.total)}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Total venta */}
-                      <td className="py-3.5 pr-4 text-right pl-8">
-                        {venta.cashea ? (
-                          <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
-                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {formatCurrency(venta.total)}
-                            </span>
-                            {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
-                              <span className="text-[11px] font-semibold text-amber-700">
-                                Debe {formatCurrency(venta.deuda_restante)}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-slate-300">—</span>
-                        )}
+                      <td className="py-3.5 pr-4 text-right">
+                        <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                          {formatCurrency(venta.total)}
+                        </span>
                       </td>
 
                       {/* Estado badge */}
@@ -274,7 +244,7 @@ const VentasRecientes = ({
                           </span>
                         ) : venta.por_pagar ? (
                           <span className="badge badge-por-pagar gap-1">
-                            <Clock size={11} /> Por terminar de pagar
+                            <Clock size={11} /> Por pagar
                           </span>
                         ) : (
                           <span className="badge badge-completada gap-1">
@@ -283,47 +253,43 @@ const VentasRecientes = ({
                         )}
                       </td>
 
-
-
-                      {/* Generar nota de entrega */}
-                      <td className="py-3.5 pr-4 text-center">
-                        {!esCancelada ? (
+                      {/* Acciones (Opciones + Cancelar) */}
+                      <td className="py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => abrirNotaEntrega(venta)}
+                            onClick={() => setDetalleId(venta.id)}
                             className="inline-flex items-center gap-1.5 text-xs font-semibold
-                                       text-pink-600 bg-pink-50 hover:bg-pink-100
-                                       border border-pink-200 px-3 py-1.5 rounded-lg
-                                       transition-all duration-200"
-                            title="Generar nota de entrega"
+                                       text-slate-700 bg-slate-100 hover:bg-pink-50 hover:text-pink-600 hover:border-pink-200
+                                       border border-slate-200 px-3 py-1.5 rounded-lg
+                                       transition-all duration-200 shadow-sm"
+                            title="Ver detalles y opciones de la venta"
                           >
-                            <ExternalLink size={12} />
-                            Generar
+                            <Eye size={13} />
+                            Opciones
                           </button>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
-                      </td>
 
-                      {/* Acción: cancelar venta */}
-                      {!soloLectura && (
-                        <td className="py-3.5 text-right">
-                          {estaCancelando ? (
-                            <Loader2 size={16} className="text-pink-500 animate-spin inline" />
-                          ) : (
-                            <button
-                              onClick={() => handleSolicitarCancelacion(venta.id)}
-                              disabled={esCancelada || !!cancelando}
-                              className="btn-danger"
-                              title={esCancelada ? 'Venta ya cancelada' : 'Cancelar esta venta'}
-                              aria-label={`Cancelar venta ${venta.id}`}
-                            >
-                              <XCircle size={13} className="inline mr-1" />
-                              Cancelar
-                            </button>
+                          {!soloLectura && (
+                            estaCancelando ? (
+                              <Loader2 size={16} className="text-pink-500 animate-spin inline" />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSolicitarCancelacion(venta.id)}
+                                disabled={esCancelada || !!cancelando}
+                                className="inline-flex items-center gap-1 text-xs font-semibold
+                                           text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200
+                                           px-2.5 py-1.5 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:hover:bg-rose-50"
+                                title={esCancelada ? 'Venta ya cancelada' : 'Cancelar esta venta'}
+                                aria-label={`Cancelar venta ${venta.id}`}
+                              >
+                                <XCircle size={13} />
+                                Cancelar
+                              </button>
+                            )
                           )}
-                        </td>
-                      )}
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
