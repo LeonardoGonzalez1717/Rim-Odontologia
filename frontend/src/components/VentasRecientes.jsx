@@ -205,23 +205,17 @@ const VentasRecientes = ({
                       </td>
 
                       {/* Monto en caja */}
-                      <td className="py-3.5 pr-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {Boolean(venta.cashea) && (
-                            <span
-                              className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-100 flex-shrink-0"
-                              title="Venta con Cashea"
-                            />
+                      <td className="py-3.5 pr-4 text-right pl-8">
+                        <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                          {venta.cashea && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              Cashea
+                            </span>
                           )}
-                          {Boolean(
-                            venta.tiene_saldo_a_favor === true ||
-                            venta.saldo_a_favor === true ||
-                            venta.servicios?.some((s) => s.realizado === false || s.realizado === 0 || s.realizado === '0')
-                          ) && (
-                            <span
-                              className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100 flex-shrink-0"
-                              title="Tiene saldo a favor (tratamiento pendiente)"
-                            />
+                          {!venta.cashea && ((venta.deuda_restante ?? 0) > 0.001 || venta.tiene_saldo_favor) && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                              Saldo a favor
+                            </span>
                           )}
                           <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                             {formatCurrency(venta.monto_caja ?? venta.total)}
@@ -230,10 +224,21 @@ const VentasRecientes = ({
                       </td>
 
                       {/* Total venta */}
-                      <td className="py-3.5 pr-4 text-right">
-                        <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                          {formatCurrency(venta.total)}
-                        </span>
+                      <td className="py-3.5 pr-4 text-right pl-8">
+                        {(venta.cashea || (venta.deuda_restante ?? 0) > 0.001) ? (
+                          <div className={`flex flex-col items-end gap-0.5 ${esCancelada ? 'opacity-60' : ''}`}>
+                            <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {formatCurrency(venta.total)}
+                            </span>
+                            {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
+                              <span className="text-[11px] font-semibold text-amber-700">
+                                Debe {formatCurrency(venta.deuda_restante)}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Estado badge */}

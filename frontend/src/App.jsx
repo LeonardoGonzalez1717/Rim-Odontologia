@@ -206,6 +206,8 @@ function AdminApp() {
 
   // ── UI ──
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
+  const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
   const [cancelando, setCancelando] = useState(null)
   const [toast, setToast] = useState(null)
 
@@ -347,12 +349,35 @@ function AdminApp() {
   // ─────────────────────────────────────────────────────────────────
   // Al guardar una venta desde el modal
   // ─────────────────────────────────────────────────────────────────
-  const handleVentaGuardada = () => {
+  const handleVentaGuardada = useCallback((venta) => {
     setModalAbierto(false)
-    setToast({ mensaje: '¡Venta registrada exitosamente!', tipo: 'success' })
+    setPagoPendienteInicial(null)
+    if (venta?.es_pago_pendiente) {
+      setPendientesReloadKey((k) => k + 1)
+      setToast({ mensaje: 'Pago del saldo pendiente registrado correctamente.', tipo: 'success' })
+    } else {
+      setToast({ mensaje: '¡Venta registrada exitosamente!', tipo: 'success' })
+    }
     setPaginaVentas(1)
     cargarDashboardSecuencial(fechaVentas, 1)
-  }
+  }, [fechaVentas, cargarDashboardSecuencial])
+
+  const handleRegistrarPagoPendiente = useCallback((pago) => {
+    setPagoPendienteInicial(pago)
+    setModalAbierto(true)
+  }, [])
+
+  const handleCerrarModalVenta = useCallback(() => {
+    setModalAbierto(false)
+    setPagoPendienteInicial(null)
+  }, [])
+
+  const handleToastPendientes = useCallback((msg) => {
+    setToast({
+      mensaje: typeof msg === 'string' ? msg : msg?.mensaje,
+      tipo: 'success',
+    })
+  }, [])
 
   const handleAbonoRegistrado = () => {
     setToast({ mensaje: '¡Pago Cashea registrado en caja!', tipo: 'success' })
@@ -531,10 +556,9 @@ function AdminApp() {
 
           {paginaActual === 'pendientes' && (
             <TratamientosPendientes
-              onToast={(msg) => setToast({
-                mensaje: typeof msg === 'string' ? msg : msg?.mensaje,
-                tipo: 'success',
-              })}
+              onToast={handleToastPendientes}
+              onRegistrarPago={handleRegistrarPagoPendiente}
+              reloadKey={pendientesReloadKey}
             />
           )}
 
@@ -555,13 +579,14 @@ function AdminApp() {
       {/* ── Modal de Registro de Venta ── */}
       {modalAbierto && (
         <RegistrarVentaModal
-          onClose={() => setModalAbierto(false)}
+          onClose={handleCerrarModalVenta}
           onVentaGuardada={handleVentaGuardada}
           onAbonoRegistrado={handleAbonoRegistrado}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}
           onRecargarClientes={cargarFormData}
+          pagoPendienteInicial={pagoPendienteInicial}
         />
       )}
 

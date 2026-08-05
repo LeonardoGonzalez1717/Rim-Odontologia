@@ -2,9 +2,9 @@
 // components/TratamientosPendientes.jsx
 // Lista de clientes con tratamientos pagados pendientes de realizar
 // =============================================================================
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
 import {
-  ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Clock,
+  ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Clock, Banknote,
 } from 'lucide-react'
 import { getTratamientosPendientes, marcarTratamientoRealizado } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
@@ -12,7 +12,7 @@ import { formatearDMAa } from '../utils/fechas'
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
 
-const TratamientosPendientes = ({ onVolver, onToast }) => {
+const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, reloadKey = 0 }) => {
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -24,12 +24,16 @@ const TratamientosPendientes = ({ onVolver, onToast }) => {
     total_clientes: 0,
   })
 
-  const notify = useCallback((mensaje) => {
-    onToast?.(mensaje)
-  }, [onToast])
+  const onToastRef = useRef(onToast)
+  onToastRef.current = onToast
 
-  const cargar = useCallback(async () => {
-    setLoading(true)
+  const onRegistrarPagoRef = useRef(onRegistrarPago)
+  onRegistrarPagoRef.current = onRegistrarPago
+
+  const tieneDatosRef = useRef(false)
+
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) setLoading(true)
     try {
       const res = await getTratamientosPendientes()
       setClientes(res.clientes ?? [])
@@ -38,16 +42,19 @@ const TratamientosPendientes = ({ onVolver, onToast }) => {
         total_tratamientos: res.total_tratamientos ?? 0,
         total_clientes: res.total_clientes ?? 0,
       })
+      tieneDatosRef.current = true
     } catch (err) {
       console.error('Error al cargar tratamientos pendientes:', err)
-      notify(err.message || 'No se pudieron cargar los tratamientos pendientes.')
+      onToastRef.current?.(err.message || 'No se pudieron cargar los tratamientos pendientes.')
       setClientes([])
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
-  }, [notify])
+  }, [])
 
-  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => {
+    cargar({ silencioso: tieneDatosRef.current })
+  }, [reloadKey, cargar])
 
   const filtrados = clientes.filter((c) => {
     const q = busqueda.toLowerCase().trim()
@@ -64,13 +71,30 @@ const TratamientosPendientes = ({ onVolver, onToast }) => {
     setMarcandoId(detalleId)
     try {
       await marcarTratamientoRealizado(detalleId)
-      notify('Tratamiento marcado como realizado.')
-      await cargar()
+      onToastRef.current?.('Tratamiento marcado como realizado.')
+      await cargar({ silencioso: true })
     } catch (err) {
-      notify(err.message || 'No se pudo marcar el tratamiento.')
+      onToastRef.current?.(err.message || 'No se pudo marcar el tratamiento.')
     } finally {
       setMarcandoId(null)
     }
+  }
+
+  const handleRegistrarPago = (cliente, tratamiento) => {
+    if (!onRegistrarPagoRef.current) {
+      onToastRef.current?.('No se puede abrir el registro de pago.')
+      return
+    }
+    onRegistrarPagoRef.current({
+      detalle_id: tratamiento.id,
+      cliente_id: cliente.cliente_id,
+      doctor_id: tratamiento.doctor_id,
+      doctor_nombre: tratamiento.doctor_nombre,
+      servicio_id: tratamiento.servicio_id,
+      nombre: tratamiento.nombre,
+      precio: tratamiento.precio,
+      venta_id: tratamiento.venta_id,
+    })
   }
 
   return (
@@ -184,27 +208,45 @@ const TratamientosPendientes = ({ onVolver, onToast }) => {
                             <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                               <Clock size={11} />
                               Venta del {formatearDMAa(t.fecha)} · {fmt(t.precio)}
+                              {!t.pagado && (
+                                <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
+                              )}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleMarcarRealizado(t.id)}
-                            disabled={marcandoId === t.id}
-                            className="btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5
-                                       whitespace-nowrap disabled:opacity-50"
-                          >
-                            {marcandoId === t.id ? (
-                              <>
-                                <Loader2 size={13} className="animate-spin" />
-                                Guardando…
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 size={13} />
-                                Ya se realizó
-                              </>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {!t.pagado && (
+                            <button
+                              type="button"
+                              onClick={() => handleRegistrarPago(cliente, t)}
+                              className="btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5
+                                         whitespace-nowrap"
+                            >
+                              <Banknote size={13} />
+                              Registrar pago
+                            </button>
                             )}
-                          </button>
+                            {t.pagado && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarcarRealizado(t.id)}
+                              disabled={marcandoId === t.id}
+                              className="btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5
+                                         whitespace-nowrap disabled:opacity-50"
+                            >
+                              {marcandoId === t.id ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />
+                                  Guardando…
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={13} />
+                                  Ya se realizó
+                                </>
+                              )}
+                            </button>
+                            )}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -219,4 +261,4 @@ const TratamientosPendientes = ({ onVolver, onToast }) => {
   )
 }
 
-export default TratamientosPendientes
+export default memo(TratamientosPendientes)

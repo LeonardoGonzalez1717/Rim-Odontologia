@@ -115,6 +115,10 @@ try {
                 : 1,
             // Cashea por línea (permite pago mixto contado + Cashea)
             'cashea'      => !empty($linea['cashea']) ? 1 : 0,
+            // pagado=0 solo para porciones aún no cobradas (realizado=0 explícito desde el front)
+            'pagado'      => array_key_exists('pagado', $linea)
+                ? (!empty($linea['pagado']) ? 1 : 0)
+                : 1,
         ];
     }
 
@@ -138,10 +142,15 @@ try {
 
     $totalCashea = 0.0;
     $totalContado = 0.0;
+    $totalPendiente = 0.0;
     foreach ($lineasNormalizadas as $linea) {
         if ($linea['cashea']) {
             $totalCashea += $linea['precio'];
+        } elseif ((int) $linea['realizado'] === 0 && (int) $linea['pagado'] === 0) {
+            // Porción aún no cobrada (pago parcial)
+            $totalPendiente += $linea['precio'];
         } else {
+            // Cobrado hoy: realizado hoy o saldo a favor (pagado=1, realizado=0)
             $totalContado += $linea['precio'];
         }
     }
@@ -195,6 +204,9 @@ try {
         }
 
         $montoCaja = round($totalContado + $montoInicialCashea, 2);
+    } else {
+        // Sin Cashea: solo entra a caja lo cobrado hoy (no la porción pendiente de pago)
+        $montoCaja = round($totalContado, 2);
     }
 
     $pdo = obtenerConexion();
@@ -246,8 +258,8 @@ try {
     $nuevoId = (int) $pdo->lastInsertId();
 
     $stmtDetalle = $pdo->prepare(
-        "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado, cashea)
-         VALUES (:venta_id, :servicio_id, :precio, :realizado, :cashea)"
+        "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado, cashea, pagado)
+         VALUES (:venta_id, :servicio_id, :precio, :realizado, :cashea, :pagado)"
     );
 
     foreach ($lineasNormalizadas as $linea) {
@@ -257,6 +269,7 @@ try {
             ':precio'      => $linea['precio'],
             ':realizado'   => $linea['realizado'],
             ':cashea'      => $linea['cashea'],
+            ':pagado'      => $linea['pagado'],
         ]);
     }
 

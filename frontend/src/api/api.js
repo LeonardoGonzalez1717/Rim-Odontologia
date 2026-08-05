@@ -471,6 +471,15 @@ export async function marcarTratamientoRealizado(id) {
   })
 }
 
+// POST /api/abono_venta.php — Abono con prioridad al saldo pendiente de tratamientos
+// @param {{ venta_id: number, monto: number, descripcion?: string }} datos
+export async function registrarAbonoVenta(datos) {
+  return apiFetch(`${API_BASE}/abono_venta.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}
+
 // POST /api/ajustes_cashea.php — Registra un abono de deuda Cashea vinculado a una venta
 // @param {{ monto: number, concepto: string, fecha_ingreso?: string }} datos
 export async function registrarAbonoCashea(datos) {
