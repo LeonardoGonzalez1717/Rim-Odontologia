@@ -41,9 +41,21 @@ try {
     );
     $servicios = $stmtServicios->fetchAll();
 
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS saldos_favor (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cliente_id INT NOT NULL,
+            monto DECIMAL(10,2) NOT NULL,
+            fecha DATETIME NOT NULL,
+            concepto VARCHAR(255) DEFAULT 'Saldo a favor registrado',
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_cliente (cliente_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    );
+
     // --- Consulta de clientes activos + deuda Cashea + saldo a favor ---
     // Deuda Cashea: venta cashea con saldo pendiente de pago.
-    // Saldo a favor: tratamientos pagados pero no realizados (realizado=0).
+    // Saldo a favor: saldos a favor registrados + tratamientos pagados pero no realizados (realizado=0).
     $stmtClientes = $pdo->query(
         "SELECT
             c.id,
@@ -94,7 +106,11 @@ try {
                 AND COALESCE(vd.realizado, 1) = 0
                 AND COALESCE(vd.pagado, 1) = 0
             ), 0) AS saldo_pendiente_cobro,
-            COALESCE((
+            (COALESCE((
+              SELECT SUM(sf.monto)
+              FROM saldos_favor sf
+              WHERE sf.cliente_id = c.id
+            ), 0) + COALESCE((
               SELECT SUM(vd.precio)
               FROM venta_detalles vd
               INNER JOIN ventas v ON v.id = vd.venta_id
@@ -103,7 +119,7 @@ try {
                 AND vd.realizado = 0
                 AND COALESCE(vd.pagado, 1) = 1
                 AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
-            ), 0) AS saldo_a_favor
+            ), 0)) AS saldo_a_favor
          FROM clientes c
          WHERE c.estado = 'activo'
          ORDER BY c.nombre ASC"

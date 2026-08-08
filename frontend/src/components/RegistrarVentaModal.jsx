@@ -22,6 +22,7 @@ import {
   registrarAbonoVenta,
   getSaldoFavorCliente,
   marcarTratamientoRealizado,
+  registrarSaldoFavor,
 } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
@@ -154,6 +155,7 @@ const RegistrarVentaModal = ({
   clientes = [],
   onRecargarClientes,
   pagoPendienteInicial = null,
+  modoSaldoFavorInicial = false,
 }) => {
   const { cargando } = useServerDate()
   const [form, setForm] = useState(crearEstadoInicial)
@@ -187,18 +189,27 @@ const RegistrarVentaModal = ({
   const [montoCashea, setMontoCashea] = useState('')
   const [montoCasheaEditado, setMontoCasheaEditado] = useState(false)
 
+  // ── Montos editables del grupo en los cards del resumen (ónull = no editando) ──
+  const [montoContadoInput, setMontoContadoInput] = useState(null)
+  const [montoCasheaGrupoInput, setMontoCasheaGrupoInput] = useState(null)
+
   // ── Modo: 'venta' | 'abono'  (solo relevante cuando clienteTieneDeuda) ──
   const [modoAbono, setModoAbono] = useState(false)
 
+  // ── Modo: Saldo a Favor (registrar saldo a favor sin tratamientos) ──
+  const [modoSaldoFavor, setModoSaldoFavor] = useState(modoSaldoFavorInicial)
+  const [montoSaldoFavor, setMontoSaldoFavor] = useState('')
+  const [conceptoSaldoFavor, setConceptoSaldoFavor] = useState('')
+
   // ── Estado de deuda Cashea del cliente seleccionado ──
-  const [deudaInfo, setDeudaInfo]           = useState(null)  // null | { deuda_total, saldo_pendiente_pago, deuda_financiada, ventas_cashea }
-  const [loadingDeuda, setLoadingDeuda]     = useState(false)
+  const [deudaInfo, setDeudaInfo] = useState(null)  // null | { deuda_total, saldo_pendiente_pago, deuda_financiada, ventas_cashea }
+  const [loadingDeuda, setLoadingDeuda] = useState(false)
   // ── Formulario de pago de deuda ──
-  const [montoAbono, setMontoAbono]     = useState('')
+  const [montoAbono, setMontoAbono] = useState('')
   const [descripcionAbono, setDescripcionAbono] = useState('')
   const [loadingAbono, setLoadingAbono] = useState(false)
-  const [exitoAbono, setExitoAbono]     = useState(false)
-  const [errorAbono, setErrorAbono]     = useState('')
+  const [exitoAbono, setExitoAbono] = useState(false)
+  const [errorAbono, setErrorAbono] = useState('')
   const [ventaAbonoId, setVentaAbonoId] = useState('')  // venta_id elegida para el abono
 
   // ── Saldo a favor (tratamientos pendientes del cliente) ──
@@ -276,6 +287,21 @@ const RegistrarVentaModal = ({
   const totalContado = useMemo(
     () => Math.round(
       lineas.filter((l) => !l.cashea).reduce((sum, l) => sum + l.precio, 0) * 100,
+    ) / 100,
+    [lineas],
+  )
+
+  // Suma de precios de catálogo (precio máximo) por grupo
+  const totalContadoCatalogo = useMemo(
+    () => Math.round(
+      lineas.filter((l) => !l.cashea).reduce((sum, l) => sum + precioTotalLinea(l), 0) * 100,
+    ) / 100,
+    [lineas],
+  )
+
+  const totalCasheaCatalogo = useMemo(
+    () => Math.round(
+      lineas.filter((l) => l.cashea).reduce((sum, l) => sum + precioTotalLinea(l), 0) * 100,
     ) / 100,
     [lineas],
   )
@@ -644,7 +670,69 @@ const RegistrarVentaModal = ({
   const handleQuitarLinea = (key) => {
     setError('')
     setMontoCasheaEditado(false)
+    setMontoContadoInput(null)
+    setMontoCasheaGrupoInput(null)
     setLineas((prev) => prev.filter((l) => l.key !== key))
+  }
+
+  /**
+   * Distribuye el monto `nuevoTotal` proporcionalmente entre las líneas del grupo `esCashea`.
+   * Si el monto es menor al catálogo, `aplicarMontoLinea` marca cada línea como pendiente.
+   */
+  const distribuirMontoGrupo = (nuevoTotal, esCashea) => {
+    setError('')
+    setLineas((prev) => {
+      const grupo = prev.filter((l) => !!l.cashea === esCashea)
+      const totalCatalogo = grupo.reduce((s, l) => s + precioTotalLinea(l), 0)
+      if (totalCatalogo <= 0) return prev
+
+      // Distribuir el monto proporcionalmente
+      let restante = Math.round(nuevoTotal * 100) / 100
+      const montosPorKey = {}
+      grupo.forEach((l, idx) => {
+        const catalogo = precioTotalLinea(l)
+        if (idx === grupo.length - 1) {
+          // Último elemento absorbe el residuo
+          montosPorKey[l.key] = Math.max(0, restante)
+        } else {
+          const proporcion = catalogo / totalCatalogo
+          const asignado = Math.min(
+            catalogo,
+            Math.round(nuevoTotal * proporcion * 100) / 100,
+          )
+          montosPorKey[l.key] = asignado
+          restante -= asignado
+        }
+      })
+
+      return prev.map((l) => {
+        if (!!l.cashea !== esCashea || montosPorKey[l.key] === undefined) return l
+        const monto = montosPorKey[l.key]
+        return aplicarMontoLinea(l, monto, undefined, true)
+      })
+    })
+  }
+
+  const handleBlurContadoInput = () => {
+    const val = parseFloat(montoContadoInput)
+    if (montoContadoInput === null || !Number.isFinite(val) || val <= 0) {
+      setMontoContadoInput(null) // restaurar a mostrar totalContado
+      return
+    }
+    const clamped = Math.min(val, totalContadoCatalogo)
+    distribuirMontoGrupo(clamped, false)
+    setMontoContadoInput(null)
+  }
+
+  const handleBlurCasheaGrupoInput = () => {
+    const val = parseFloat(montoCasheaGrupoInput)
+    if (montoCasheaGrupoInput === null || !Number.isFinite(val) || val <= 0) {
+      setMontoCasheaGrupoInput(null)
+      return
+    }
+    const clamped = Math.min(val, totalCasheaCatalogo)
+    distribuirMontoGrupo(clamped, true)
+    setMontoCasheaGrupoInput(null)
   }
 
   const validar = () => {
@@ -687,6 +775,49 @@ const RegistrarVentaModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (modoSaldoFavor) {
+      if (!form.cliente_id) {
+        setError('Por favor, selecciona un cliente.')
+        return
+      }
+      const montoNum = parseFloat(montoSaldoFavor)
+      if (!montoSaldoFavor || !Number.isFinite(montoNum) || montoNum <= 0) {
+        setError('Indica un monto válido mayor a $0.')
+        return
+      }
+
+      setLoading(true)
+      setError('')
+
+      try {
+        const fechaActual = getActualServerDatetime() || form.fecha_venta
+        const fechaFormateada = fechaActual ? fechaActual.replace('T', ' ') + ':00' : ''
+
+        await registrarSaldoFavor({
+          cliente_id: parseInt(form.cliente_id, 10),
+          monto: montoNum,
+          fecha: fechaFormateada,
+          concepto: conceptoSaldoFavor.trim() || 'Saldo a favor registrado',
+        })
+
+        if (onRecargarClientes) await onRecargarClientes()
+        setExito(true)
+
+        setTimeout(() => {
+          setExito(false)
+          setMontoSaldoFavor('')
+          setConceptoSaldoFavor('')
+          setModoSaldoFavor(false)
+          onClose()
+        }, 1200)
+      } catch (err) {
+        setError(err.message || 'No se pudo registrar el saldo a favor.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
 
     const errorValidacion = validar()
     if (errorValidacion) {
@@ -760,6 +891,8 @@ const RegistrarVentaModal = ({
           setDescripcionCashea('')
           setMontoCashea('')
           setMontoCasheaEditado(false)
+          setMontoContadoInput(null)
+          setMontoCasheaGrupoInput(null)
         }
         setExito(false)
         resetForm()
@@ -834,765 +967,917 @@ const RegistrarVentaModal = ({
 
   return (
     <>
-    {modalClienteAbierto && (
-      <ClienteModal
-        onClose={() => setModalClienteAbierto(false)}
-        onGuardado={handleClienteGuardado}
-      />
-    )}
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-scale-in">
+      {modalClienteAbierto && (
+        <ClienteModal
+          onClose={() => setModalClienteAbierto(false)}
+          onGuardado={handleClienteGuardado}
+        />
+      )}
+      <div
+        className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+      >
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-scale-in">
 
-        <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">
-              {esPagoPendiente ? 'Registrar pago pendiente' : 'Registrar Venta'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {esPagoPendiente
-                ? 'Cobra el saldo pendiente del tratamiento'
-                : 'Agrega uno o más tratamientos'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200
+          <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">
+                {esPagoPendiente ? 'Registrar pago pendiente' : 'Registrar Venta'}
+              </h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {esPagoPendiente
+                  ? 'Cobra el saldo pendiente del tratamiento'
+                  : 'Agrega uno o más tratamientos'}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200
                        flex items-center justify-center text-slate-500 hover:text-slate-700
                        transition-all duration-200 focus:outline-none focus:ring-2
                        focus:ring-slate-300"
-            aria-label="Cerrar modal"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-
-          <div className="px-7 py-6 space-y-5 overflow-y-auto flex-1 min-h-0">
-
-          {exito && (
-            <div className="flex items-center gap-3 bg-pink-50 border border-pink-200
-                            text-pink-700 rounded-xl p-4 animate-slide-up">
-              <CheckCircle2 size={20} />
-              <span className="font-semibold text-sm">
-                {esPagoPendiente ? '¡Pago registrado con éxito!' : '¡Venta registrada con éxito!'}
-              </span>
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-start gap-3 bg-red-50 border border-red-200
-                            text-red-700 rounded-xl p-4 animate-slide-up">
-              <X size={18} className="flex-shrink-0 mt-0.5" />
-              <span className="text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* ── Cliente + Doctor ── */}
-          <div className={`grid grid-cols-1 gap-4 ${
-            mostrarFormularioVenta ? 'sm:grid-cols-2' : ''
-          }`}>
-            <div className="min-w-0">
-              <label htmlFor="cliente_id" className="form-label">
-                <Contact size={14} className="inline mr-1.5 text-pink-500" />
-                Cliente
-              </label>
-              {esPagoPendiente ? (
-                <input
-                  id="cliente_id"
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  value={
-                    clienteSeleccionado
-                      ? `${clienteSeleccionado.cedula} — ${clienteSeleccionado.nombre}`
-                      : '—'
-                  }
-                  className="form-input bg-slate-50 text-slate-700 cursor-default"
-                />
-              ) : (
-                <ClienteSelect
-                  id="cliente_id"
-                  clientes={clientes}
-                  value={form.cliente_id}
-                  onChange={(val) => {
-                    setError('')
-                    setForm((prev) => ({ ...prev, cliente_id: val }))
-                  }}
-                  placeholder="Buscar por cédula o nombre…"
-                  inputRef={primerCampoRef}
-                  onNuevoCliente={() => setModalClienteAbierto(true)}
-                />
-              )}
-            </div>
-
-            {mostrarFormularioVenta && (
-              <div className="min-w-0">
-                <label htmlFor="doctor_id" className="form-label">
-                  <User size={14} className="inline mr-1.5 text-pink-500" />
-                  Doctor
-                </label>
-                {esPagoPendiente ? (
-                  <input
-                    id="doctor_id"
-                    type="text"
-                    readOnly
-                    tabIndex={-1}
-                    value={doctorPagoPendiente ?? '—'}
-                    className="form-input bg-slate-50 text-slate-700 cursor-default"
-                  />
-                ) : (
-                  <DoctorSelect
-                    id="doctor_id"
-                    doctores={doctores}
-                    value={form.doctor_id}
-                    onChange={(val) => {
-                      setError('')
-                      setForm((prev) => ({ ...prev, doctor_id: val }))
-                    }}
-                    placeholder="Buscar doctor…"
-                  />
-                )}
-              </div>
-            )}
+              aria-label="Cerrar modal"
+            >
+              <X size={16} />
+            </button>
           </div>
 
-          {/* ── Aviso saldo a favor / pendiente en tratamientos ── */}
-          {form.cliente_id && (clienteTieneSaldoFavor || clienteTieneSaldoPendienteCobro || saldoPendientePagoCashea > 0.001) && (
-            <div className="space-y-2 animate-slide-up">
-              <div className="flex items-center justify-between gap-3 px-3 py-2.5
-                              bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
-                <span className="flex items-center gap-2 min-w-0">
-                  <CheckCircle2 size={13} className="flex-shrink-0 text-emerald-600" />
-                  <span>
-                    {saldoPendientePagoCashea > 0.001 ? (
-                      <>
-                        Saldo pendiente en tratamientos:{' '}
-                        <span className="font-semibold">${saldoPendientePagoCashea.toFixed(2)}</span>
-                        <span className="text-emerald-700/80"> (aún no pagado)</span>
-                      </>
-                    ) : clienteTieneSaldoPendienteCobro && saldoPendienteCobro > 0.001 ? (
-                      <>
-                        Saldo pendiente de pago:{' '}
-                        <span className="font-semibold">${saldoPendienteCobro.toFixed(2)}</span>
-                        <span className="text-emerald-700/80"> (tratamientos pendientes)</span>
-                      </>
-                    ) : (
-                      <>
-                        Este cliente tiene saldo a favor:{' '}
-                        <span className="font-semibold">${clienteSaldoFavor.toFixed(2)}</span>
-                      </>
-                    )}
-                    {saldoAFavorPrepagado > 0.001 && saldoPendientePagoCashea > 0.001 && (
-                      <>
-                        {' '}
-                        · Pagado y pendiente de realizar:{' '}
-                        <span className="font-semibold">${saldoAFavorPrepagado.toFixed(2)}</span>
-                      </>
-                    )}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+
+            <div className="px-7 py-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+
+              {exito && (
+                <div className="flex items-center gap-3 bg-pink-50 border border-pink-200
+                            text-pink-700 rounded-xl p-4 animate-slide-up">
+                  <CheckCircle2 size={20} />
+                  <span className="font-semibold text-sm">
+                    {esPagoPendiente ? '¡Pago registrado con éxito!' : '¡Venta registrada con éxito!'}
                   </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleVerTratamientosFavor}
-                  className="flex-shrink-0 text-emerald-700 font-semibold hover:text-emerald-900
-                             underline underline-offset-2 transition-colors"
-                >
-                  {mostrarTratamientosFavor ? 'Ocultar' : 'Ver tratamientos'}
-                </button>
-              </div>
-
-              {mostrarTratamientosFavor && (
-                <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 space-y-2">
-                  {loadingTratamientosFavor ? (
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" />
-                      Cargando tratamientos…
-                    </p>
-                  ) : tratamientosFavor.length === 0 ? (
-                    <p className="text-xs text-slate-400">No hay tratamientos pendientes.</p>
-                  ) : (
-                    <ul className="divide-y divide-slate-100">
-                      {tratamientosFavor.map((t) => (
-                        <li key={t.id} className="flex items-center justify-between gap-3 py-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-medium text-slate-700 truncate">{t.nombre}</p>
-                            <p className="text-slate-400 mt-0.5">
-                              {formatearDMAa(t.fecha)}
-                              {t.pagado === false && (
-                                <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
-                              )}
-                              {t.pagado !== false && (
-                                <span className="text-emerald-700 font-medium"> · Saldo a favor</span>
-                              )}
-                            </p>
-                          </div>
-                          <span className={`font-semibold whitespace-nowrap ${t.pagado === false ? 'text-amber-700' : 'text-emerald-700'}`}>
-                            ${Number(t.precio).toFixed(2)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Aviso + toggle de modo (sólo si cliente tiene deuda Cashea) ── */}
-          {form.cliente_id && puedeAbonar && !esPagoPendiente && (
-            <div className="flex items-center justify-between gap-3 px-3 py-2.5
-                            bg-orange-50 border border-orange-200 rounded-xl animate-slide-up">
-              <span className="text-xs text-orange-700 flex flex-col gap-0.5 min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <AlertTriangle size={13} className="flex-shrink-0" />
-                  {deudaInfo ? (
-                    deudaCasheaPendiente > 0.001 ? (
-                      <>
-                        Pendiente de Cashea:{' '}
-                        <span className="font-semibold">${deudaCasheaPendiente.toFixed(2)}</span>
-                      </>
-                    ) : (
-                      <>Sin deuda Cashea pendiente</>
-                    )
-                  ) : (
-                    <>Cliente con deuda Cashea</>
-                  )}
-                </span>
-                {deudaInfo && saldoPendientePagoCashea > 0.001 && deudaCasheaPendiente > 0.001 && (
-                  <span className="text-orange-600/90 pl-5">
-                    Total adeudado (tratamientos + Cashea):{' '}
-                    <span className="font-semibold">${deudaInfo.deuda_total.toFixed(2)}</span>
-                  </span>
-                )}
-              </span>
-              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setModoAbono(false)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150
-                    ${ !modoAbono ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-700' }`}
-                >
-                  Nueva venta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModoAbono(true)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150
-                    ${ modoAbono ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-700' }`}
-                >
-                  Abono
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Panel de deuda — sólo en modo abono ── */}
-          {form.cliente_id && puedeAbonar && modoAbono && !esPagoPendiente && (
-            <div ref={deudaSectionRef} className="space-y-3 animate-slide-up">
-              {loadingDeuda && (
-                <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
-                  <Loader2 size={12} className="animate-spin" />
-                  <span>Cargando deuda…</span>
                 </div>
               )}
 
-              {!loadingDeuda && deudaInfo && ventasConDeudaCashea.length > 0 && (
-                <>
-                  <div>
-                    <label className="form-label">Aplicar abono a</label>
-                    <select
-                      value={ventaAbonoId}
-                      onChange={(e) => { setErrorAbono(''); setVentaAbonoId(e.target.value) }}
-                      className="form-input"
+              {error && (
+                <div className="flex items-start gap-3 bg-red-50 border border-red-200
+                            text-red-700 rounded-xl p-4 animate-slide-up">
+                  <X size={18} className="flex-shrink-0 mt-0.5" />
+                  <span className="text-sm">{error}</span>
+                </div>
+              )}
+
+              {/* ── Selector de Modo: Nueva Venta vs Saldo a Favor ── */}
+              {!esPagoPendiente && (
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('')
+                      setModoSaldoFavor(false)
+                      setModoAbono(false)
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      !modoSaldoFavor && !modoAbono
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Stethoscope size={14} className={!modoSaldoFavor && !modoAbono ? 'text-pink-600' : ''} />
+                    <span>Nueva Venta</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('')
+                      setModoSaldoFavor(true)
+                      setModoAbono(false)
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      modoSaldoFavor
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Sparkles size={14} />
+                    <span>Saldo a Favor</span>
+                  </button>
+
+                  {form.cliente_id && puedeAbonar && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('')
+                        setModoSaldoFavor(false)
+                        setModoAbono(true)
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        modoAbono
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
                     >
-                      {ventasConDeudaCashea.map((v) => (
-                        <option key={v.id} value={String(v.id)}>
-                          {formatearDMAa(v.fecha)} — ${v.deuda_restante.toFixed(2)} adeudado
-                        </option>
-                      ))}
-                    </select>
-                    {ventaAbonoSeleccionada && (
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                        <span className="text-slate-600">
-                          Total venta:{' '}
-                          <span className="font-semibold text-slate-800">
-                            ${ventaAbonoSeleccionada.total.toFixed(2)}
-                          </span>
-                        </span>
-                        <span className="text-green-700">
-                          Ya pagado:{' '}
-                          <span className="font-semibold">${montoYaPagado.toFixed(2)}</span>
-                        </span>
-                        {(ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
-                          <span className="text-emerald-700">
-                            Pendiente tratamientos:{' '}
-                            <span className="font-semibold">
-                              ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}
-                            </span>
-                          </span>
-                        )}
-                        <span className="text-amber-700">
-                          Deuda Cashea:{' '}
-                          <span className="font-semibold">
-                            ${(ventaAbonoSeleccionada.deuda_financiada ?? ventaAbonoSeleccionada.deuda_restante).toFixed(2)}
-                          </span>
-                        </span>
-                      </div>
+                      <Banknote size={14} />
+                      <span>Abonar Cashea</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Cliente + Doctor ── */}
+              <div className={`grid grid-cols-1 gap-4 ${mostrarFormularioVenta ? 'sm:grid-cols-2' : ''
+                }`}>
+                <div className="min-w-0">
+                  <label htmlFor="cliente_id" className="form-label">
+                    <Contact size={14} className="inline mr-1.5 text-pink-500" />
+                    Cliente
+                  </label>
+                  {esPagoPendiente ? (
+                    <input
+                      id="cliente_id"
+                      type="text"
+                      readOnly
+                      tabIndex={-1}
+                      value={
+                        clienteSeleccionado
+                          ? `${clienteSeleccionado.cedula} — ${clienteSeleccionado.nombre}`
+                          : '—'
+                      }
+                      className="form-input bg-slate-50 text-slate-700 cursor-default"
+                    />
+                  ) : (
+                    <ClienteSelect
+                      id="cliente_id"
+                      clientes={clientes}
+                      value={form.cliente_id}
+                      onChange={(val) => {
+                        setError('')
+                        setForm((prev) => ({ ...prev, cliente_id: val }))
+                      }}
+                      placeholder="Buscar por cédula o nombre…"
+                      inputRef={primerCampoRef}
+                      onNuevoCliente={() => setModalClienteAbierto(true)}
+                    />
+                  )}
+                </div>
+
+                {mostrarFormularioVenta && !modoSaldoFavor && (
+                  <div className="min-w-0">
+                    <label htmlFor="doctor_id" className="form-label">
+                      <User size={14} className="inline mr-1.5 text-pink-500" />
+                      Doctor
+                    </label>
+                    {esPagoPendiente ? (
+                      <input
+                        id="doctor_id"
+                        type="text"
+                        readOnly
+                        tabIndex={-1}
+                        value={doctorPagoPendiente ?? '—'}
+                        className="form-input bg-slate-50 text-slate-700 cursor-default"
+                      />
+                    ) : (
+                      <DoctorSelect
+                        id="doctor_id"
+                        doctores={doctores}
+                        value={form.doctor_id}
+                        onChange={(val) => {
+                          setError('')
+                          setForm((prev) => ({ ...prev, doctor_id: val }))
+                        }}
+                        placeholder="Buscar doctor…"
+                      />
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Campos de Saldo a Favor (Modo Saldo a Favor activo, sin tratamientos) ── */}
+              {modoSaldoFavor && (
+                <div className="space-y-4 bg-emerald-50/70 border border-emerald-200/80 p-4.5 rounded-2xl animate-fade-in">
+                  <div className="flex items-center gap-2 text-emerald-900 text-sm font-bold">
+                    <Sparkles size={16} className="text-emerald-600 flex-shrink-0" />
+                    <span>Registrar Saldo a Favor (Sin tratamientos)</span>
                   </div>
 
                   <div>
-                    <label className="form-label">Monto del abono ($)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
+                    <label htmlFor="monto_saldo_favor" className="form-label text-xs font-semibold text-slate-700">
+                      <DollarSign size={13} className="inline mr-1 text-slate-500" />
+                      Monto a Favor ($)
+                    </label>
+                    <div className="relative mt-0.5">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
                       <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={montoAbono}
-                        onChange={(e) => { setErrorAbono(''); setMontoAbono(e.target.value) }}
+                        id="monto_saldo_favor"
+                        type="text"
+                        inputMode="decimal"
+                        value={montoSaldoFavor}
+                        onChange={(e) => {
+                          setError('')
+                          setMontoSaldoFavor(e.target.value)
+                        }}
                         placeholder="0.00"
-                        className="form-input pl-8"
+                        className="form-input pl-7 py-2 text-base font-bold text-slate-800 bg-white"
+                        required
                       />
                     </div>
-                    {ventaAbonoSeleccionada && (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        Se aplica primero al saldo pendiente de tratamientos (
-                        ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}); el resto va a Cashea.
+                  </div>
+
+                  <div>
+                    <label htmlFor="fecha_saldo_favor" className="form-label text-xs font-semibold text-slate-700">
+                      <Calendar size={13} className="inline mr-1 text-slate-500" />
+                      Fecha y Hora
+                    </label>
+                    <input
+                      id="fecha_saldo_favor"
+                      type="datetime-local"
+                      value={form.fecha_venta}
+                      readOnly
+                      tabIndex={-1}
+                      className="form-input bg-slate-100 text-slate-600 cursor-default text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="concepto_saldo_favor" className="form-label text-xs font-semibold text-slate-700">
+                      <FileText size={13} className="inline mr-1 text-slate-500" />
+                      Concepto / Notas <span className="text-slate-400 font-normal">(opcional)</span>
+                    </label>
+                    <input
+                      id="concepto_saldo_favor"
+                      type="text"
+                      value={conceptoSaldoFavor}
+                      onChange={(e) => setConceptoSaldoFavor(e.target.value)}
+                      placeholder="Ej. Abono a cuenta, pago anticipado…"
+                      className="form-input text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Indicador de saldo a favor / pendiente del cliente ── */}
+              {form.cliente_id && (clienteTieneSaldoFavor || clienteSaldoFavor > 0.001 || clienteTieneSaldoPendienteCobro || saldoPendientePagoCashea > 0.001) && (
+                <div className="space-y-2 animate-slide-up">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5
+                              bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Sparkles size={14} className="flex-shrink-0 text-emerald-600" />
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {(clienteTieneSaldoFavor || clienteSaldoFavor > 0.001) && (
+                          <span className="font-semibold text-emerald-900">
+                            Saldo a favor: <span className="font-bold">${clienteSaldoFavor.toFixed(2)}</span>
+                          </span>
+                        )}
+                        {saldoPendientePagoCashea > 0.001 ? (
+                          <span className="text-emerald-800">
+                            · Pendiente: <span className="font-semibold text-amber-800">${saldoPendientePagoCashea.toFixed(2)}</span>
+                          </span>
+                        ) : clienteTieneSaldoPendienteCobro && saldoPendienteCobro > 0.001 ? (
+                          <span className="text-emerald-800">
+                            · Pendiente: <span className="font-semibold text-amber-800">${saldoPendienteCobro.toFixed(2)}</span>
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleVerTratamientosFavor}
+                      className="flex-shrink-0 text-emerald-700 font-semibold hover:text-emerald-900
+                             underline underline-offset-2 transition-colors"
+                    >
+                      {mostrarTratamientosFavor ? 'Ocultar' : 'Ver tratamientos'}
+                    </button>
+                  </div>
+
+                  {mostrarTratamientosFavor && (
+                    <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 space-y-2">
+                      {loadingTratamientosFavor ? (
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                          <Loader2 size={12} className="animate-spin" />
+                          Cargando tratamientos…
+                        </p>
+                      ) : tratamientosFavor.length === 0 ? (
+                        <p className="text-xs text-slate-400">No hay tratamientos pendientes.</p>
+                      ) : (
+                        <ul className="divide-y divide-slate-100">
+                          {tratamientosFavor.map((t) => (
+                            <li key={t.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="font-medium text-slate-700 truncate">{t.nombre}</p>
+                                <p className="text-slate-400 mt-0.5">
+                                  {formatearDMAa(t.fecha)}
+                                  {t.pagado === false && (
+                                    <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
+                                  )}
+                                  {t.pagado !== false && (
+                                    <span className="text-emerald-700 font-medium"> · Saldo a favor</span>
+                                  )}
+                                </p>
+                              </div>
+                              <span className={`font-semibold whitespace-nowrap ${t.pagado === false ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                ${Number(t.precio).toFixed(2)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Aviso + toggle de modo (sólo si cliente tiene deuda Cashea) ── */}
+              {form.cliente_id && puedeAbonar && !esPagoPendiente && (
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5
+                            bg-orange-50 border border-orange-200 rounded-xl animate-slide-up">
+                  <span className="text-xs text-orange-700 flex flex-col gap-0.5 min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle size={13} className="flex-shrink-0" />
+                      {deudaInfo ? (
+                        deudaCasheaPendiente > 0.001 ? (
+                          <>
+                            Pendiente de Cashea:{' '}
+                            <span className="font-semibold">${deudaCasheaPendiente.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <>Sin deuda Cashea pendiente</>
+                        )
+                      ) : (
+                        <>Cliente con deuda Cashea</>
+                      )}
+                    </span>
+                    {deudaInfo && saldoPendientePagoCashea > 0.001 && deudaCasheaPendiente > 0.001 && (
+                      <span className="text-orange-600/90 pl-5">
+                        Total adeudado (tratamientos + Cashea):{' '}
+                        <span className="font-semibold">${deudaInfo.deuda_total.toFixed(2)}</span>
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setModoAbono(false)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150
+                    ${!modoAbono ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Nueva venta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoAbono(true)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150
+                    ${modoAbono ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Abono
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Panel de deuda — sólo en modo abono ── */}
+              {form.cliente_id && puedeAbonar && modoAbono && !esPagoPendiente && (
+                <div ref={deudaSectionRef} className="space-y-3 animate-slide-up">
+                  {loadingDeuda && (
+                    <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Cargando deuda…</span>
+                    </div>
+                  )}
+
+                  {!loadingDeuda && deudaInfo && ventasConDeudaCashea.length > 0 && (
+                    <>
+                      <div>
+                        <label className="form-label">Aplicar abono a</label>
+                        <select
+                          value={ventaAbonoId}
+                          onChange={(e) => { setErrorAbono(''); setVentaAbonoId(e.target.value) }}
+                          className="form-input"
+                        >
+                          {ventasConDeudaCashea.map((v) => (
+                            <option key={v.id} value={String(v.id)}>
+                              {formatearDMAa(v.fecha)} — ${v.deuda_restante.toFixed(2)} adeudado
+                            </option>
+                          ))}
+                        </select>
+                        {ventaAbonoSeleccionada && (
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            <span className="text-slate-600">
+                              Total venta:{' '}
+                              <span className="font-semibold text-slate-800">
+                                ${ventaAbonoSeleccionada.total.toFixed(2)}
+                              </span>
+                            </span>
+                            <span className="text-green-700">
+                              Ya pagado:{' '}
+                              <span className="font-semibold">${montoYaPagado.toFixed(2)}</span>
+                            </span>
+                            {(ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
+                              <span className="text-emerald-700">
+                                Pendiente tratamientos:{' '}
+                                <span className="font-semibold">
+                                  ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}
+                                </span>
+                              </span>
+                            )}
+                            <span className="text-amber-700">
+                              Deuda Cashea:{' '}
+                              <span className="font-semibold">
+                                ${(ventaAbonoSeleccionada.deuda_financiada ?? ventaAbonoSeleccionada.deuda_restante).toFixed(2)}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="form-label">Monto del abono ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={montoAbono}
+                            onChange={(e) => { setErrorAbono(''); setMontoAbono(e.target.value) }}
+                            placeholder="0.00"
+                            className="form-input pl-8"
+                          />
+                        </div>
+                        {ventaAbonoSeleccionada && (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            Se aplica primero al saldo pendiente de tratamientos (
+                            ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}); el resto va a Cashea.
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label htmlFor="descripcion_abono" className="form-label">
+                          Descripción
+                        </label>
+                        <textarea
+                          id="descripcion_abono"
+                          rows={2}
+                          value={descripcionAbono}
+                          onChange={(e) => { setErrorAbono(''); setDescripcionAbono(e.target.value) }}
+                          placeholder="Ej: Cuota 2 de 4, pago parcial…"
+                          className="form-input resize-none"
+                          maxLength={180}
+                        />
+                      </div>
+
+                      {errorAbono && (
+                        <p className="text-xs text-red-600 flex items-center gap-1">
+                          <X size={12} /> {errorAbono}
+                        </p>
+                      )}
+                      {exitoAbono && (
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Pago registrado correctamente.
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleRegistrarAbono}
+                        disabled={loadingAbono || !montoAbono}
+                        className="w-full flex items-center justify-center gap-2
+                               bg-red-600 hover:bg-red-700 disabled:opacity-50
+                               text-white text-sm font-semibold rounded-xl px-4 py-2.5
+                               transition-colors duration-200"
+                      >
+                        {loadingAbono ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            Registrando…
+                          </>
+                        ) : (
+                          <>
+                            <Banknote size={14} />
+                            Registrar Pago
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {!loadingDeuda && (!deudaInfo || ventasConDeudaCashea.length === 0) && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <CheckCircle2 size={13} className="text-green-500" />
+                      ¡Deuda saldada! Este cliente está al día.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════
+              FORMULARIO DE VENTA — solo en modo nueva venta
+          ══════════════════════════════════════════════════════════ */}
+              {mostrarFormularioVenta && (
+                <>
+
+                  {/* ── Tratamientos (selector en una sola fila) ── */}
+                  <div>
+                    <label htmlFor="servicio_add" className="form-label">
+                      <Stethoscope size={14} className="inline mr-1.5 text-pink-500" />
+                      Tratamientos
+                    </label>
+                    {!esPagoPendiente && (
+                      <div className="flex gap-2 items-stretch">
+                        <div className="flex-1 min-w-0">
+                          <ServicioSelect
+                            id="servicio_add"
+                            servicios={serviciosDisponibles}
+                            value={servicioSeleccionado}
+                            onChange={(val) => {
+                              setError('')
+                              setServicioSeleccionado(val)
+                            }}
+                            placeholder="Buscar tratamiento por nombre…"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAgregarTratamiento}
+                          disabled={!servicioSeleccionado}
+                          className="btn-secondary flex items-center gap-1.5 px-3 whitespace-nowrap"
+                        >
+                          <Plus size={16} />
+                          Agregar
+                        </button>
+                      </div>
+                    )}
+
+                    {lineas.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        <label className="flex items-center gap-2 text-xs font-medium text-slate-600
+                                  cursor-pointer select-none px-1">
+                          <input
+                            type="checkbox"
+                            checked={todosCashea}
+                            onChange={handleToggleTodosCashea}
+                            className="w-4 h-4 rounded border-slate-300 text-amber-600
+                               focus:ring-amber-500 cursor-pointer"
+                          />
+                          <CreditCard size={12} className="text-amber-600" />
+                          Todos con Cashea
+                        </label>
+
+                        <ul className="space-y-2">
+                          {lineas.map((linea) => (
+                            <li
+                              key={linea.key}
+                              className={`flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3
+                                 border rounded-xl px-3 py-2.5 transition-colors
+                                 ${linea.cashea
+                                  ? 'bg-amber-50/70 border-amber-200'
+                                  : montoPendienteLinea(linea) > 0.001 || linea.realizado === false
+                                    ? 'bg-emerald-50/70 border-emerald-200'
+                                    : 'bg-slate-50 border-slate-100'}`}
+                            >
+                              <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                                <span className="text-sm text-slate-700 leading-tight truncate">
+                                  {linea.nombre}
+                                </span>
+                                {montoPendienteLinea(linea) > 0.001 && (
+                                  <span className="text-[10px] text-slate-500">
+                                    Total tratamiento: ${precioTotalLinea(linea).toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                                <div className="flex items-center gap-0.5">
+                                  <span className="text-slate-400 text-xs font-semibold">$</span>
+                                  <span className="text-sm font-semibold text-slate-800">
+                                    {linea.precio > 0 ? linea.precio.toFixed(2) : '0.00'}
+                                  </span>
+                                </div>
+                                {montoPendienteLinea(linea) > 0.001 ? (
+                                  <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
+                                    Pendiente ${montoPendienteLinea(linea).toFixed(2)}
+                                  </span>
+                                ) : linea.realizado === false && (
+                                  <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
+                                    Saldo a favor
+                                  </span>
+                                )}
+                              </div>
+
+                              {!linea.es_pago_pendiente && (
+                                <>
+                                  <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer
+                                        whitespace-nowrap select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!linea.cashea}
+                                      onChange={() => handleToggleCasheaLinea(linea.key)}
+                                      className="w-4 h-4 rounded border-slate-300 text-amber-600
+                                     focus:ring-amber-500 cursor-pointer"
+                                    />
+                                    <span className={linea.cashea ? 'text-amber-800 font-medium' : ''}>
+                                      Cashea
+                                    </span>
+                                  </label>
+
+                                  <label
+                                    className={`flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap select-none ${montoPendienteLinea(linea) > 0.001
+                                      ? 'cursor-default'
+                                      : 'cursor-pointer'
+                                      }`}
+                                    title={
+                                      montoPendienteLinea(linea) > 0.001
+                                        ? linea.cashea
+                                          ? `Inicial Cashea $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
+                                          : `Pagado $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
+                                        : 'Cliente pagó el tratamiento hoy; quedará pendiente de realizar (saldo a favor)'
+                                    }
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={linea.realizado === false}
+                                      disabled={montoPendienteLinea(linea) > 0.001}
+                                      onChange={() => handleToggleRealizado(linea.key)}
+                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600
+                                     focus:ring-emerald-500 cursor-pointer
+                                     disabled:opacity-60 disabled:cursor-default"
+                                    />
+                                    <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
+                                      Saldo a favor
+                                    </span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuitarLinea(linea.key)}
+                                    className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50
+                                   flex items-center justify-center transition-colors flex-shrink-0"
+                                    aria-label={`Quitar ${linea.nombre}`}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 mt-2">
+                        Agrega los tratamientos incluidos en esta venta.
                       </p>
                     )}
                   </div>
 
+                  {/* ── Descripción (opcional) ── */}
                   <div>
-                    <label htmlFor="descripcion_abono" className="form-label">
+                    <label htmlFor="descripcion_cashea" className="form-label">
                       Descripción
+                      <span className="ml-1.5 text-xs font-normal text-slate-400">(opcional)</span>
                     </label>
                     <textarea
-                      id="descripcion_abono"
+                      ref={descripcionRef}
+                      id="descripcion_cashea"
+                      value={descripcionCashea}
+                      onChange={(e) => {
+                        setError('')
+                        setDescripcionCashea(e.target.value)
+                      }}
+                      placeholder="Notas de la venta o del financiamiento Cashea…"
                       rows={2}
-                      value={descripcionAbono}
-                      onChange={(e) => { setErrorAbono(''); setDescripcionAbono(e.target.value) }}
-                      placeholder="Ej: Cuota 2 de 4, pago parcial…"
-                      className="form-input resize-none"
-                      maxLength={180}
+                      maxLength={500}
+                      className="form-input resize-none overflow-hidden"
+                      style={{ maxHeight: DESC_MAX_ALTURA_PX }}
                     />
+                    <p className="text-xs text-slate-500 mt-1">
+                      {descripcionCashea.length}/500 caracteres
+                    </p>
                   </div>
 
-                  {errorAbono && (
-                    <p className="text-xs text-red-600 flex items-center gap-1">
-                      <X size={12} /> {errorAbono}
+                  {/* ── Fecha ── */}
+                  <div>
+                    <label htmlFor="fecha_venta" className="form-label">
+                      <Calendar size={14} className="inline mr-1.5 text-pink-500" />
+                      Fecha y Hora
+                    </label>
+                    <input
+                      id="fecha_venta"
+                      type="datetime-local"
+                      name="fecha_venta"
+                      value={form.fecha_venta}
+                      readOnly
+                      tabIndex={-1}
+                      className="form-input bg-slate-50 text-slate-600 cursor-default"
+                      aria-label="Fecha y hora del servidor"
+                      title="Hora sincronizada con el servidor e Internet (no editable)"
+                      required
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      {cargando || !form.fecha_venta
+                        ? 'Sincronizando hora con el servidor…'
+                        : 'Hora del servidor e Internet (no usa el reloj de esta computadora)'}
                     </p>
-                  )}
-                  {exitoAbono && (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Pago registrado correctamente.
-                    </p>
-                  )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handleRegistrarAbono}
-                    disabled={loadingAbono || !montoAbono}
-                    className="w-full flex items-center justify-center gap-2
-                               bg-red-600 hover:bg-red-700 disabled:opacity-50
-                               text-white text-sm font-semibold rounded-xl px-4 py-2.5
-                               transition-colors duration-200"
-                  >
-                    {loadingAbono ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        Registrando…
-                      </>
-                    ) : (
-                      <>
-                        <Banknote size={14} />
-                        Registrar Pago
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
+                  {/* ── Contado / Cashea / Total ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                        Contado
+                      </p>
+                      {totalContadoCatalogo > 0 ? (
+                        <>
+                          <div className="relative mt-0.5 w-full">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">$</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={montoContadoInput !== null ? montoContadoInput : totalContado.toFixed(2)}
+                              onChange={(e) => { setError(''); setMontoContadoInput(e.target.value) }}
+                              onBlur={handleBlurContadoInput}
+                              onFocus={(e) => { setMontoContadoInput(totalContado.toFixed(2)); setTimeout(() => e.target.select(), 0) }}
+                              className="form-input pl-6 py-1.5 text-lg font-bold text-slate-800 w-full"
+                              aria-label="Monto contado"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            Máx: ${totalContadoCatalogo.toFixed(2)}
+                            {totalContadoCatalogo - totalContado > 0.001 && (
+                              <span className="ml-1 text-emerald-700 font-medium">
+                                · Pend: ${(totalContadoCatalogo - totalContado).toFixed(2)}
+                              </span>
+                            )}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-slate-800">$0.00</p>
+                          <p className="text-[11px] text-slate-500 mt-1">Entra completo a caja</p>
+                        </>
+                      )}
+                    </div>
 
-              {!loadingDeuda && (!deudaInfo || ventasConDeudaCashea.length === 0) && (
-                <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                  <CheckCircle2 size={13} className="text-green-500" />
-                  ¡Deuda saldada! Este cliente está al día.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════
-              FORMULARIO DE VENTA — solo en modo nueva venta
-          ══════════════════════════════════════════════════════════ */}
-          {mostrarFormularioVenta && (
-            <>
-
-          {/* ── Tratamientos (selector en una sola fila) ── */}
-          <div>
-            <label htmlFor="servicio_add" className="form-label">
-              <Stethoscope size={14} className="inline mr-1.5 text-pink-500" />
-              Tratamientos
-            </label>
-            {!esPagoPendiente && (
-            <div className="flex gap-2 items-stretch">
-              <div className="flex-1 min-w-0">
-                <ServicioSelect
-                  id="servicio_add"
-                  servicios={serviciosDisponibles}
-                  value={servicioSeleccionado}
-                  onChange={(val) => {
-                    setError('')
-                    setServicioSeleccionado(val)
-                  }}
-                  placeholder="Buscar tratamiento por nombre…"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleAgregarTratamiento}
-                disabled={!servicioSeleccionado}
-                className="btn-secondary flex items-center gap-1.5 px-3 whitespace-nowrap"
-              >
-                <Plus size={16} />
-                Agregar
-              </button>
-            </div>
-            )}
-
-            {lineas.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                <label className="flex items-center gap-2 text-xs font-medium text-slate-600
-                                  cursor-pointer select-none px-1">
-                  <input
-                    type="checkbox"
-                    checked={todosCashea}
-                    onChange={handleToggleTodosCashea}
-                    className="w-4 h-4 rounded border-slate-300 text-amber-600
-                               focus:ring-amber-500 cursor-pointer"
-                  />
-                  <CreditCard size={12} className="text-amber-600" />
-                  Todos con Cashea
-                </label>
-
-                <ul className="space-y-2">
-                  {lineas.map((linea) => (
-                    <li
-                      key={linea.key}
-                      className={`flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3
-                                 border rounded-xl px-3 py-2.5 transition-colors
-                                 ${linea.cashea
-                                   ? 'bg-amber-50/70 border-amber-200'
-                                   : montoPendienteLinea(linea) > 0.001 || linea.realizado === false
-                                     ? 'bg-emerald-50/70 border-emerald-200'
-                                     : 'bg-slate-50 border-slate-100'}`}
+                    <div
+                      ref={casheaSectionRef}
+                      className={`rounded-xl border px-3 py-3 ${tieneCashea
+                        ? 'border-amber-200 bg-amber-50'
+                        : 'border-slate-200 bg-slate-50'
+                        }`}
                     >
-                      <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-                        <span className="text-sm text-slate-700 leading-tight truncate">
-                          {linea.nombre}
-                        </span>
-                        {montoPendienteLinea(linea) > 0.001 && (
-                          <span className="text-[10px] text-slate-500">
-                            Total tratamiento: ${precioTotalLinea(linea).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                        <div className="relative w-[6.5rem]">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">
-                            $
-                          </span>
+                      <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${tieneCashea ? 'text-amber-700' : 'text-slate-400'
+                        }`}>
+                        Cashea
+                      </p>
+                      {tieneCashea && totalCasheaCatalogo > 0 ? (
+                        <div className="relative mt-0.5 w-full mb-2">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 text-xs font-semibold">$</span>
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={
-                              linea.precio_input !== undefined
-                                ? linea.precio_input
-                                : (linea.precio > 0 ? String(linea.precio) : '')
-                            }
-                            onChange={(e) => handleCambioPrecioLinea(linea.key, e.target.value)}
-                            onBlur={() => handleBlurPrecioLinea(linea.key)}
-                            className="form-input pl-5 py-1 text-sm font-semibold text-slate-800 w-full"
-                            aria-label={
-                              montoPendienteLinea(linea) > 0.001 || linea.cashea
-                                ? `Monto pagado de ${linea.nombre}`
-                                : `Precio de ${linea.nombre}`
-                            }
-                            placeholder="0.00"
-                            title={
-                              montoPendienteLinea(linea) > 0.001
-                                ? `Total: $${precioTotalLinea(linea).toFixed(2)} · Pagado: $${linea.precio.toFixed(2)}`
-                                : `Precio del tratamiento: $${precioTotalLinea(linea).toFixed(2)}`
-                            }
+                            value={montoCasheaGrupoInput !== null ? montoCasheaGrupoInput : totalCashea.toFixed(2)}
+                            onChange={(e) => { setError(''); setMontoCasheaGrupoInput(e.target.value) }}
+                            onBlur={handleBlurCasheaGrupoInput}
+                            onFocus={(e) => { setMontoCasheaGrupoInput(totalCashea.toFixed(2)); setTimeout(() => e.target.select(), 0) }}
+                            className="form-input pl-6 py-1.5 text-lg font-bold text-amber-800 bg-white w-full"
+                            aria-label="Monto Cashea"
                           />
+                          {totalCasheaCatalogo - totalCashea > 0.001 && (
+                            <p className="text-[10px] text-amber-700 mt-0.5">
+                              Máx: ${totalCasheaCatalogo.toFixed(2)}
+                              <span className="ml-1 text-emerald-700 font-medium">
+                                · Pend: ${(totalCasheaCatalogo - totalCashea).toFixed(2)}
+                              </span>
+                            </p>
+                          )}
                         </div>
-                        {montoPendienteLinea(linea) > 0.001 ? (
-                          <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
-                            Pendiente ${montoPendienteLinea(linea).toFixed(2)}
-                          </span>
-                        ) : linea.realizado === false && (
-                          <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
-                            Saldo a favor
+                      ) : (
+                        <p className={`text-lg font-bold ${tieneCashea ? 'text-amber-800' : 'text-slate-400'}`}>
+                          ${totalCashea.toFixed(2)}
+                        </p>
+                      )}
+                      {tieneCashea ? (
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <label htmlFor="monto_cashea" className="text-[11px] font-medium text-amber-800">
+                              Cuota inicial en caja
+                            </label>
+                            <div className="relative mt-0.5">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">
+                                $
+                              </span>
+                              <input
+                                id="monto_cashea"
+                                type="text"
+                                inputMode="decimal"
+                                value={montoCashea}
+                                onChange={(e) => {
+                                  setError('')
+                                  setMontoCasheaEditado(true)
+                                  setMontoCashea(e.target.value)
+                                }}
+                                placeholder="0.00"
+                                className="form-input pl-6 py-1.5 text-sm bg-white"
+                              />
+                            </div>
+                            <p className="text-[10px] text-amber-700/80 mt-1">
+                              Sugerido 40%: ${montoSugeridoCashea.toFixed(2)}
+                            </p>
+                          </div>
+                          <p className="text-[11px] text-orange-700 space-y-0.5">
+                            {totalPendiente > 0.001 && (
+                              <span className="block">
+                                Pendiente: <span className="font-semibold">${totalPendiente.toFixed(2)}</span>
+                              </span>
+                            )}
+                            {deudaCashea > 0.001 && (
+                              <span className="block">
+                                Deuda Cashea: <span className="font-semibold">${deudaCashea.toFixed(2)}</span>
+                              </span>
+                            )}
+                            <span className="block font-medium">
+                              Total adeudado: <span className="font-semibold">${deudaEstimada.toFixed(2)}</span>
+                            </span>
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Marca tratamientos con Cashea
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-pink-200 bg-pink-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-pink-600 mb-1">
+                        Total venta
+                        {lineas.length > 0 && (
+                          <span className="ml-1 font-normal normal-case tracking-normal text-pink-500">
+                            ({lineas.length})
                           </span>
                         )}
-                      </div>
-
-                      {!linea.es_pago_pendiente && (
-                        <>
-                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer
-                                        whitespace-nowrap select-none">
-                        <input
-                          type="checkbox"
-                          checked={!!linea.cashea}
-                          onChange={() => handleToggleCasheaLinea(linea.key)}
-                          className="w-4 h-4 rounded border-slate-300 text-amber-600
-                                     focus:ring-amber-500 cursor-pointer"
-                        />
-                        <span className={linea.cashea ? 'text-amber-800 font-medium' : ''}>
-                          Cashea
-                        </span>
-                      </label>
-
-                      <label
-                        className={`flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap select-none ${
-                          montoPendienteLinea(linea) > 0.001
-                            ? 'cursor-default'
-                            : 'cursor-pointer'
-                        }`}
-                        title={
-                          montoPendienteLinea(linea) > 0.001
-                            ? linea.cashea
-                              ? `Inicial Cashea $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
-                              : `Pagado $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
-                            : 'Cliente pagó el tratamiento hoy; quedará pendiente de realizar (saldo a favor)'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={linea.realizado === false}
-                          disabled={montoPendienteLinea(linea) > 0.001}
-                          onChange={() => handleToggleRealizado(linea.key)}
-                          className="w-4 h-4 rounded border-slate-300 text-emerald-600
-                                     focus:ring-emerald-500 cursor-pointer
-                                     disabled:opacity-60 disabled:cursor-default"
-                        />
-                        <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
-                          Saldo a favor
-                        </span>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuitarLinea(linea.key)}
-                        className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50
-                                   flex items-center justify-center transition-colors flex-shrink-0"
-                        aria-label={`Quitar ${linea.nombre}`}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                        </>
+                      </p>
+                      <p className="text-lg font-bold text-pink-800">
+                        ${total > 0 ? total.toFixed(2) : '0.00'}
+                      </p>
+                      {tieneCashea || totalPendiente > 0.001 ? (
+                        <div className="text-[11px] text-pink-700 mt-1 font-medium space-y-0.5">
+                          <p>Caja hoy: ${montoCaja.toFixed(2)}</p>
+                          {totalPendiente > 0.001 && !tieneCashea && (
+                            <p>Pendiente: ${totalPendiente.toFixed(2)}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 mt-1">Pago completo</p>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400 mt-2">
-                Agrega los tratamientos incluidos en esta venta.
-              </p>
-            )}
-          </div>
-
-          {/* ── Descripción (opcional) ── */}
-          <div>
-            <label htmlFor="descripcion_cashea" className="form-label">
-              Descripción
-              <span className="ml-1.5 text-xs font-normal text-slate-400">(opcional)</span>
-            </label>
-            <textarea
-              ref={descripcionRef}
-              id="descripcion_cashea"
-              value={descripcionCashea}
-              onChange={(e) => {
-                setError('')
-                setDescripcionCashea(e.target.value)
-              }}
-              placeholder="Notas de la venta o del financiamiento Cashea…"
-              rows={2}
-              maxLength={500}
-              className="form-input resize-none overflow-hidden"
-              style={{ maxHeight: DESC_MAX_ALTURA_PX }}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              {descripcionCashea.length}/500 caracteres
-            </p>
-          </div>
-
-          {/* ── Fecha ── */}
-          <div>
-            <label htmlFor="fecha_venta" className="form-label">
-              <Calendar size={14} className="inline mr-1.5 text-pink-500" />
-              Fecha y Hora
-            </label>
-            <input
-              id="fecha_venta"
-              type="datetime-local"
-              name="fecha_venta"
-              value={form.fecha_venta}
-              readOnly
-              tabIndex={-1}
-              className="form-input bg-slate-50 text-slate-600 cursor-default"
-              aria-label="Fecha y hora del servidor"
-              title="Hora sincronizada con el servidor e Internet (no editable)"
-              required
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              {cargando || !form.fecha_venta
-                ? 'Sincronizando hora con el servidor…'
-                : 'Hora del servidor e Internet (no usa el reloj de esta computadora)'}
-            </p>
-          </div>
-
-          {/* ── Contado / Cashea / Total ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-                Contado
-              </p>
-              <p className="text-lg font-bold text-slate-800">
-                ${totalContado.toFixed(2)}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">Entra completo a caja</p>
-            </div>
-
-            <div
-              ref={casheaSectionRef}
-              className={`rounded-xl border px-3 py-3 ${
-                tieneCashea
-                  ? 'border-amber-200 bg-amber-50'
-                  : 'border-slate-200 bg-slate-50'
-              }`}
-            >
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
-                tieneCashea ? 'text-amber-700' : 'text-slate-400'
-              }`}>
-                Cashea
-              </p>
-              <p className={`text-lg font-bold ${tieneCashea ? 'text-amber-800' : 'text-slate-400'}`}>
-                ${totalCashea.toFixed(2)}
-              </p>
-              {tieneCashea ? (
-                <div className="mt-2 space-y-2">
-                  <div>
-                    <label htmlFor="monto_cashea" className="text-[11px] font-medium text-amber-800">
-                      Cuota inicial en caja
-                    </label>
-                    <div className="relative mt-0.5">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">
-                        $
-                      </span>
-                      <input
-                        id="monto_cashea"
-                        type="text"
-                        inputMode="decimal"
-                        value={montoCashea}
-                        onChange={(e) => {
-                          setError('')
-                          setMontoCasheaEditado(true)
-                          setMontoCashea(e.target.value)
-                        }}
-                        placeholder="0.00"
-                        className="form-input pl-6 py-1.5 text-sm bg-white"
-                      />
                     </div>
-                    <p className="text-[10px] text-amber-700/80 mt-1">
-                      Sugerido 40%: ${montoSugeridoCashea.toFixed(2)}
-                    </p>
                   </div>
-                  <p className="text-[11px] text-orange-700 space-y-0.5">
-                    {totalPendiente > 0.001 && (
-                      <span className="block">
-                        Pendiente: <span className="font-semibold">${totalPendiente.toFixed(2)}</span>
-                      </span>
-                    )}
-                    {deudaCashea > 0.001 && (
-                      <span className="block">
-                        Deuda Cashea: <span className="font-semibold">${deudaCashea.toFixed(2)}</span>
-                      </span>
-                    )}
-                    <span className="block font-medium">
-                      Total adeudado: <span className="font-semibold">${deudaEstimada.toFixed(2)}</span>
-                    </span>
-                  </p>
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Marca tratamientos con Cashea
-                </p>
+
+                </>
               )}
+
             </div>
 
-            <div className="rounded-xl border border-pink-200 bg-pink-50 px-3 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-pink-600 mb-1">
-                Total venta
-                {lineas.length > 0 && (
-                  <span className="ml-1 font-normal normal-case tracking-normal text-pink-500">
-                    ({lineas.length})
-                  </span>
-                )}
-              </p>
-              <p className="text-lg font-bold text-pink-800">
-                ${total > 0 ? total.toFixed(2) : '0.00'}
-              </p>
-              {tieneCashea || totalPendiente > 0.001 ? (
-                <div className="text-[11px] text-pink-700 mt-1 font-medium space-y-0.5">
-                  <p>Caja hoy: ${montoCaja.toFixed(2)}</p>
-                  {totalPendiente > 0.001 && !tieneCashea && (
-                    <p>Pendiente: ${totalPendiente.toFixed(2)}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 mt-1">Pago completo</p>
-              )}
-            </div>
-          </div>
-
-            </>
-          )}
-
-          </div>
-
-          <div className="flex-shrink-0 px-7 py-4 border-t border-slate-100 bg-white rounded-b-3xl flex gap-3">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancelar
-            </button>
-            {mostrarFormularioVenta && (
-              <button
-                type="submit"
-                disabled={loading || exito || lineas.length === 0 || cargando || !form.fecha_venta}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Save size={16} />
-                    {esPagoPendiente ? 'Registrar Pago' : 'Registrar Venta'}
-                  </>
-                )}
+            <div className="flex-shrink-0 px-7 py-4 border-t border-slate-100 bg-white rounded-b-3xl flex gap-3">
+              <button type="button" onClick={onClose} className="btn-secondary flex-1">
+                Cancelar
               </button>
-            )}
-          </div>
-        </form>
+              {modoSaldoFavor ? (
+                <button
+                  type="submit"
+                  disabled={loading || exito || !form.cliente_id || !montoSaldoFavor}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      Guardar Saldo a Favor
+                    </>
+                  )}
+                </button>
+              ) : mostrarFormularioVenta ? (
+                <button
+                  type="submit"
+                  disabled={loading || exito || lineas.length === 0 || cargando || !form.fecha_venta}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      {esPagoPendiente ? 'Registrar Pago' : 'Registrar Venta'}
+                    </>
+                  )}
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
     </>
   )
 }

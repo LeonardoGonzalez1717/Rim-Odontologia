@@ -19,10 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'conexion.php';
 require_once 'venta_helpers.php';
 
+$method = obtenerMetodoHttp();
+
 try {
     $pdo = obtenerConexion();
 
-    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    if ($method === 'GET') {
         $stmt = $pdo->query(
             "SELECT
                 vd.id,
@@ -97,13 +99,13 @@ try {
         exit;
     }
 
-    if ($_SERVER['REQUEST_METHOD'] !== 'PATCH') {
+    if ($method !== 'PATCH') {
         http_response_code(405);
         echo json_encode(['success' => false, 'message' => 'Método no permitido.']);
         exit;
     }
 
-    $body  = file_get_contents('php://input');
+    $body  = defined('CACHED_BODY') ? CACHED_BODY : file_get_contents('php://input');
     $datos = json_decode($body, true);
 
     if (json_last_error() !== JSON_ERROR_NONE) {

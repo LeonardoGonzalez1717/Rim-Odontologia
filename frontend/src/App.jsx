@@ -7,7 +7,7 @@
 // =============================================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Plus, Loader2, AlertCircle, X,
+  Plus, Loader2, AlertCircle, X, Sparkles,
   LayoutDashboard, UserCog, Stethoscope, Menu,
   ChevronRight, LogOut, UserCircle, Users, Contact, ClipboardList,
 } from 'lucide-react'
@@ -206,6 +206,7 @@ function AdminApp() {
 
   // ── UI ──
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [modoSaldoFavorInicial, setModoSaldoFavorInicial] = useState(false)
   const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
   const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
   const [cancelando, setCancelando] = useState(null)
@@ -478,9 +479,24 @@ function AdminApp() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Botón: Saldo a Favor */}
+            <button
+              onClick={() => {
+                setModoSaldoFavorInicial(true)
+                setModalAbierto(true)
+              }}
+              className="btn-secondary flex items-center gap-2 text-sm bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+              aria-label="Registrar saldo a favor para un cliente"
+            >
+              <Sparkles size={16} />
+              Saldo a Favor
+            </button>
             {/* Botón: Nueva Venta */}
             <button
-              onClick={() => setModalAbierto(true)}
+              onClick={() => {
+                setModoSaldoFavorInicial(false)
+                setModalAbierto(true)
+              }}
               className="btn-primary flex items-center gap-2 text-sm"
               aria-label="Abrir formulario de registro de venta"
             >
@@ -579,7 +595,11 @@ function AdminApp() {
       {/* ── Modal de Registro de Venta ── */}
       {modalAbierto && (
         <RegistrarVentaModal
-          onClose={handleCerrarModalVenta}
+          onClose={() => {
+            setModalAbierto(false)
+            setModoSaldoFavorInicial(false)
+            setPagoPendienteInicial(null)
+          }}
           onVentaGuardada={handleVentaGuardada}
           onAbonoRegistrado={handleAbonoRegistrado}
           doctores={doctores}
@@ -587,6 +607,7 @@ function AdminApp() {
           clientes={clientes}
           onRecargarClientes={cargarFormData}
           pagoPendienteInicial={pagoPendienteInicial}
+          modoSaldoFavorInicial={modoSaldoFavorInicial}
         />
       )}
 

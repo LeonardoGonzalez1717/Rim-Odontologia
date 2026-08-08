@@ -12,7 +12,7 @@ import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
-import { fmt as formatCurrency } from '../utils/reportesPrint'
+import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
 
 // -----------------------------------------------------------------------------
 // VentasRecientes — Componente principal
@@ -133,6 +133,9 @@ const VentasRecientes = ({
                   <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Servicio
                   </th>
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    Registrado por
+                  </th>
                   <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
                     Monto en caja
                   </th>
@@ -197,11 +200,26 @@ const VentasRecientes = ({
                             {venta.servicios?.length ? venta.servicios[0].nombre : (venta.servicio || '—')}
                           </span>
                           {cantServicios > 1 && (
-                            <span className="text-[10px] font-semibold text-pink-600 bg-pink-50 border border-pink-100 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                            <span
+                              className="text-[10px] font-semibold text-pink-600 bg-pink-50 border border-pink-100 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 cursor-pointer hover:bg-pink-100 transition-colors"
+                              onClick={() => setDetalleId(venta.id)}
+                              title="Ver todos los tratamientos"
+                            >
                               +{cantServicios - 1} más
                             </span>
                           )}
                         </div>
+                      </td>
+
+                      {/* Registrado por */}
+                      <td className="py-3.5 pr-4">
+                        {venta.usuario_nombre ? (
+                          <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {venta.usuario_nombre}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Monto en caja */}
@@ -230,11 +248,11 @@ const VentasRecientes = ({
                             <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                               {formatCurrency(venta.total)}
                             </span>
-                            {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
+                            {/* {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
                               <span className="text-[11px] font-semibold text-amber-700">
                                 Debe {formatCurrency(venta.deuda_restante)}
                               </span>
-                            )}
+                            )} */}
                           </div>
                         ) : (
                           <span className="text-sm text-slate-300">—</span>
@@ -268,11 +286,23 @@ const VentasRecientes = ({
                                        text-slate-700 bg-slate-100 hover:bg-pink-50 hover:text-pink-600 hover:border-pink-200
                                        border border-slate-200 px-3 py-1.5 rounded-lg
                                        transition-all duration-200 shadow-sm"
-                            title="Ver detalles y opciones de la venta"
+                            title="Ver detalles"
                           >
                             <Eye size={13} />
-                            Opciones
                           </button>
+
+                          {!esCancelada && (
+                            <button
+                              type="button"
+                              onClick={() => abrirNotaEntrega(venta)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold
+                                         text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200
+                                         px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
+                              title="Generar nota de entrega"
+                            >
+                              <Receipt size={13} />
+                            </button>
+                          )}
 
                           {!soloLectura && (
                             estaCancelando ? (

@@ -16,6 +16,28 @@ define('DB_CHARSET', 'utf8mb4');
 date_default_timezone_set('America/New_York');
 
 /**
+ * Detecta el método HTTP, soportando method spoofing (_method en el body JSON)
+ * para servidores/hostings que bloquean verbos HTTP PUT, DELETE o PATCH.
+ *
+ * @return string
+ */
+function obtenerMetodoHttp(): string
+{
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($method === 'POST') {
+        $rawEarly = file_get_contents('php://input');
+        $tmpData  = json_decode($rawEarly, true);
+        if (isset($tmpData['_method']) && in_array(strtoupper($tmpData['_method']), ['PUT', 'DELETE', 'PATCH'], true)) {
+            $method = strtoupper($tmpData['_method']);
+        }
+        if (!defined('CACHED_BODY')) {
+            define('CACHED_BODY', $rawEarly);
+        }
+    }
+    return $method;
+}
+
+/**
  * Crea y devuelve una instancia de PDO configurada.
  * Lanza una excepción si la conexión falla.
  *

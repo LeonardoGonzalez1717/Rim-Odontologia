@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react'
 import {
   X, Clock, User, Contact, Stethoscope, DollarSign, CreditCard, FileText,
-  ExternalLink, XCircle, Loader2, CheckCircle2, UserCheck
+  ExternalLink, XCircle, Loader2, CheckCircle2, UserCheck, Sparkles
 } from 'lucide-react'
 import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
 
@@ -30,6 +30,67 @@ const DetalleVentaModal = ({
 
   const esCancelada = venta.estado === 'cancelada'
   const estaCancelando = cancelando === venta.id
+
+  // 1. Saldo a favor: Tratamientos pagados o financiados pendientes por realizar ("Otro día")
+  const serviciosSaldoFavor = servicios.filter(
+    (s) => s.realizado === false && (s.pagado === true || s.cashea === true)
+  )
+  const totalSaldoFavor = serviciosSaldoFavor.reduce((sum, s) => sum + (s.precio || 0), 0)
+
+  // Desglose del saldo a favor por origen (Cashea vs Contado)
+  const saldoFavorCashea = serviciosSaldoFavor
+    .filter((s) => s.cashea === true)
+    .reduce((sum, s) => sum + (s.precio || 0), 0)
+
+  const saldoFavorContado = serviciosSaldoFavor
+    .filter((s) => !s.cashea)
+    .reduce((sum, s) => sum + (s.precio || 0), 0)
+
+  // 2. Pendiente por pagar (tratamientos no pagados en la venta)
+  const serviciosPendientesPago = servicios.filter((s) => s.pagado === false)
+  const totalPendientePagoCalculado = serviciosPendientesPago.reduce(
+    (sum, s) => sum + (s.precio || 0),
+    0
+  )
+
+  // 3. Agrupar servicios: si hay un ítem cashea y uno pendiente del mismo nombre,
+  //    se muestran como uno solo con precio total y nota "Debe $X"
+  const serviciosAgrupados = (() => {
+    const grupos = []
+    const usados = new Set()
+
+    servicios.forEach((s, i) => {
+      if (usados.has(i)) return
+
+      // Buscar par: ítem cashea + ítem pendiente del mismo nombre
+      if (s.cashea === true) {
+        const iPendiente = servicios.findIndex(
+          (p, j) => !usados.has(j) && j !== i && p.pagado === false && p.nombre === s.nombre
+        )
+        if (iPendiente !== -1) {
+          usados.add(i)
+          usados.add(iPendiente)
+          const pendiente = servicios[iPendiente]
+          grupos.push({
+            key: s.id ?? `g-${i}`,
+            nombre: s.nombre,
+            totalPrecio: (s.precio || 0) + (pendiente.precio || 0),
+            montoCashea: s.precio || 0,
+            debeAdicional: pendiente.precio || 0,
+            esSaldoFavor: s.realizado === false,
+            cashea: true,
+            agrupado: true,
+          })
+          return
+        }
+      }
+
+      usados.add(i)
+      grupos.push({ ...s, key: s.id ?? i, agrupado: false })
+    })
+
+    return grupos
+  })()
 
   const handleNotaEntrega = () => {
     abrirNotaEntrega(venta)
@@ -106,48 +167,67 @@ const DetalleVentaModal = ({
               Tratamientos / Servicios
             </p>
             <ul className="space-y-2">
-              {servicios.map((s, i) => (
-                <li
-                  key={s.id ?? i}
-                  className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 border
-                             ${s.cashea
-                      ? 'bg-amber-50/70 border-amber-200'
-                      : 'bg-slate-50 border-slate-100'}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-slate-700">{s.nombre}</span>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {s.cashea && (
-                        <span className="text-[10px] font-bold uppercase tracking-wide
-                                         text-amber-800 bg-amber-100 border border-amber-200
-                                         rounded px-1.5 py-0.5">
-                          Cashea
-                        </span>
-                      )}
-                      {s.realizado === false && (
-                        <span className="text-[10px] font-bold uppercase tracking-wide
-                                         text-emerald-800 bg-emerald-100 border border-emerald-200
-                                         rounded px-1.5 py-0.5">
-                          Otro día
-                        </span>
-                      )}
+              {serviciosAgrupados.map((s) => {
+                const esPagadoOCashea = s.pagado === true || s.cashea === true
+                const esSaldoFavor = s.agrupado ? s.esSaldoFavor : (s.realizado === false && esPagadoOCashea)
+                const esPendientePago = !s.agrupado && s.pagado === false
+
+                return (
+                  <li
+                    key={s.key}
+                    className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 border
+                               ${s.cashea
+                        ? 'bg-amber-50/70 border-amber-200'
+                        : esPendientePago
+                        ? 'bg-amber-50/60 border-amber-200'
+                        : 'bg-slate-50 border-slate-100'}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-medium text-slate-700">{s.nombre}</span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {s.cashea && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide
+                                           text-amber-800 bg-amber-100 border border-amber-200
+                                           rounded px-1.5 py-0.5">
+                            Cashea
+                          </span>
+                        )}
+                        {esSaldoFavor && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide
+                                           text-emerald-800 bg-emerald-100 border border-emerald-200
+                                           rounded px-1.5 py-0.5">
+                            Saldo a favor
+                          </span>
+                        )}
+                        {esPendientePago && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide
+                                           text-amber-800 bg-amber-100 border border-amber-200
+                                           rounded px-1.5 py-0.5">
+                            Pendiente de pago
+                          </span>
+                        )}
+                        {s.agrupado && s.debeAdicional > 0.001 && (
+                          <span className="text-[10px] font-medium text-rose-700">
+                            · Debe {formatCurrency(s.debeAdicional)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {s.precio != null && (
                     <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
-                      {formatCurrency(s.precio)}
+                      {formatCurrency(s.agrupado ? s.totalPrecio : s.precio)}
                     </span>
-                  )}
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           </div>
 
           {/* Desglose Financiero */}
-          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2.5">
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+            {/* Total de la Venta */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 flex items-center gap-1.5">
-                <DollarSign size={14} className="text-pink-500" />
+              <span className="text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                <DollarSign size={15} className="text-pink-500" />
                 Total de la venta
               </span>
               <span className={`text-base font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
@@ -155,36 +235,94 @@ const DetalleVentaModal = ({
               </span>
             </div>
 
-            {venta.cashea ? (
-              <>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                  <span className="text-sm text-slate-600 flex items-center gap-1.5">
-                    <CreditCard size={14} className="text-amber-600" />
-                    Monto en caja
+            {/* Monto ingresado en caja */}
+            {(venta.cashea || venta.monto_caja != null) && (
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
+                <span className="text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                  <CreditCard size={15} className="text-emerald-600" />
+                  Monto ingresado en caja
+                </span>
+                <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-emerald-700'}`}>
+                  {formatCurrency(venta.monto_caja ?? venta.total)}
+                </span>
+              </div>
+            )}
+
+            {/* Saldo a Favor (Tratamientos abonados/pagados por realizar) */}
+            {!esCancelada && (totalSaldoFavor > 0.001 || (venta.saldo_favor ?? 0) > 0.001) && (
+              <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-3 space-y-1.5 animate-fade-in">
+                <div className="flex items-center justify-between text-emerald-900">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-emerald-600" />
+                    Saldo a favor del cliente
                   </span>
-                  <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                    {formatCurrency(venta.monto_caja ?? venta.total)}
+                  <span className="text-sm font-bold text-emerald-700">
+                    {formatCurrency(totalSaldoFavor > 0.001 ? totalSaldoFavor : venta.saldo_favor)}
                   </span>
                 </div>
-                {!esCancelada && (venta.deuda_restante ?? 0) > 0.001 && (
-                  <div className="flex items-center justify-between pt-1 text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200/60">
-                    <span className="text-xs font-semibold uppercase tracking-wide">Saldo pendiente (Cashea)</span>
-                    <span className="text-sm font-bold">Debe {formatCurrency(venta.deuda_restante)}</span>
-                  </div>
-                )}
-                {venta.descripcion_cashea && (
-                  <div className="pt-2 border-t border-slate-200">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                      <FileText size={12} className="inline mr-1" />
-                      Descripción Cashea
+                <div className="text-xs text-emerald-800/90 pl-5 space-y-0.5 font-medium">
+                  {saldoFavorCashea > 0.001 && (
+                    <p className="flex items-center justify-between">
+                      <span>• Pagado/financiado con Cashea:</span>
+                      <span className="font-semibold text-emerald-900">{formatCurrency(saldoFavorCashea)}</span>
                     </p>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/80">
-                      {venta.descripcion_cashea}
+                  )}
+                  {saldoFavorContado > 0.001 && (
+                    <p className="flex items-center justify-between">
+                      <span>• Pagado de contado:</span>
+                      <span className="font-semibold text-emerald-900">{formatCurrency(saldoFavorContado)}</span>
                     </p>
-                  </div>
-                )}
-              </>
-            ) : null}
+                  )}
+                  <p className="text-[11px] text-emerald-700/80 italic pt-0.5">
+                    (Monto abonado/pagado de tratamientos pendientes por realizar)
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Pendiente por pagar (Tratamientos pendientes de cobro) */}
+            {!esCancelada && totalPendientePagoCalculado > 0.001 && (
+              <div className="bg-rose-50/90 border border-rose-200/80 rounded-xl p-3 space-y-1 animate-fade-in">
+                <div className="flex items-center justify-between text-rose-900">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock size={13} className="text-rose-600" />
+                    Pendiente por pagar
+                  </span>
+                  <span className="text-sm font-bold text-rose-700">
+                    {formatCurrency(totalPendientePagoCalculado)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-700/80 pl-5 italic">
+                  (Monto por cobrar al cliente para completar el tratamiento)
+                </p>
+              </div>
+            )}
+
+            {/* Saldo pendiente (Cashea) */}
+            {!esCancelada && venta.cashea && (venta.deuda_restante ?? 0) > 0.001 && (
+              <div className="flex items-center justify-between bg-amber-50/90 border border-amber-200/80 px-3 py-2 rounded-xl text-amber-900">
+                <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <CreditCard size={13} className="text-amber-700" />
+                  Saldo pendiente (Cashea)
+                </span>
+                <span className="text-sm font-bold text-amber-800">
+                  Debe {formatCurrency(venta.deuda_restante)}
+                </span>
+              </div>
+            )}
+
+            {/* Descripción Cashea */}
+            {venta.cashea && venta.descripcion_cashea && (
+              <div className="pt-2 border-t border-slate-200/70">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                  <FileText size={12} className="inline mr-1" />
+                  Descripción Cashea
+                </p>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/80">
+                  {venta.descripcion_cashea}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Estado de la venta */}
@@ -209,43 +347,8 @@ const DetalleVentaModal = ({
           </div>
         </div>
 
-        {/* Footer / Acciones disponibles */}
-        <div className="flex-shrink-0 px-7 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-3xl space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            {!esCancelada && (
-              <button
-                type="button"
-                onClick={handleNotaEntrega}
-                className="flex-1 inline-flex items-center justify-center gap-2 text-xs font-semibold
-                           text-pink-600 bg-pink-50 hover:bg-pink-100
-                           border border-pink-200 px-4 py-2.5 rounded-xl
-                           transition-all duration-200 shadow-sm"
-              >
-                <ExternalLink size={14} />
-                Generar Nota de Entrega
-              </button>
-            )}
-
-            {!soloLectura && !esCancelada && onSolicitarCancelacion && (
-              <button
-                type="button"
-                onClick={handleCancelar}
-                disabled={estaCancelando}
-                className="inline-flex items-center justify-center gap-2 text-xs font-semibold
-                           text-rose-600 bg-rose-50 hover:bg-rose-100
-                           border border-rose-200 px-4 py-2.5 rounded-xl
-                           transition-all duration-200 shadow-sm"
-              >
-                {estaCancelando ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <XCircle size={14} />
-                )}
-                Cancelar Venta
-              </button>
-            )}
-          </div>
-
+        {/* Footer */}
+        <div className="flex-shrink-0 px-7 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-3xl">
           <button
             type="button"
             onClick={onClose}

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Plus, LogOut, Loader2, UserCircle, UserPlus, Contact,
-  Stethoscope, ChevronLeft, Search, X, DollarSign, ClipboardList,
+  Stethoscope, ChevronLeft, Search, X, DollarSign, ClipboardList, Sparkles,
 } from 'lucide-react'
 import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
@@ -325,6 +325,7 @@ const AsistenteVenta = () => {
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [modoSaldoFavorInicial, setModoSaldoFavorInicial] = useState(false)
   const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
   const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
@@ -402,12 +403,15 @@ const AsistenteVenta = () => {
             <>
               <button
                 type="button"
-                onClick={abrirNuevoCliente}
+                onClick={() => {
+                  setModoSaldoFavorInicial(true)
+                  setModalAbierto(true)
+                }}
                 disabled={loading}
-                className="btn-secondary flex items-center gap-2 text-sm py-2 px-3 sm:px-4"
+                className="btn-secondary flex items-center gap-2 text-sm py-2 px-3 sm:px-4 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
               >
-                <UserPlus size={16} />
-                <span className="hidden sm:inline">Nuevo Cliente</span>
+                <Sparkles size={16} />
+                <span className="hidden sm:inline">Saldo a Favor</span>
               </button>
 
               <button
@@ -459,6 +463,15 @@ const AsistenteVenta = () => {
                 descripcion="Registra una venta con uno o más tratamientos para un cliente."
                 onClick={() => setModalAbierto(true)}
                 destacada
+              />
+              <TarjetaOpcion
+                icono={Sparkles}
+                titulo="Saldo a Favor"
+                descripcion="Registra un abono o saldo a favor a un cliente."
+                onClick={() => {
+                  setModoSaldoFavorInicial(true)
+                  setModalAbierto(true)
+                }}
               />
               <TarjetaOpcion
                 icono={UserPlus}
@@ -516,13 +529,19 @@ const AsistenteVenta = () => {
 
       {modalAbierto && (
         <RegistrarVentaModal
-          onClose={handleCerrarModalVenta}
+          onClose={() => {
+            setModalAbierto(false)
+            setModoSaldoFavorInicial(false)
+            setPagoPendienteInicial(null)
+          }}
           onVentaGuardada={handleVentaGuardada}
+          onAbonoRegistrado={handleVentaGuardada}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}
           onRecargarClientes={cargarDatos}
           pagoPendienteInicial={pagoPendienteInicial}
+          modoSaldoFavorInicial={modoSaldoFavorInicial}
         />
       )}
 

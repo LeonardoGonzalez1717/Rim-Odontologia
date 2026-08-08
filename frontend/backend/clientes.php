@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'conexion.php';
 require_once 'persona_validacion.php';
 
-$method = $_SERVER['REQUEST_METHOD'];
+$method = obtenerMetodoHttp();
 
 try {
     $pdo = obtenerConexion();
@@ -41,7 +41,7 @@ try {
         exit;
     }
 
-    $body  = file_get_contents('php://input');
+    $body  = defined('CACHED_BODY') ? CACHED_BODY : file_get_contents('php://input');
     $datos = json_decode($body, true);
 
     if (json_last_error() !== JSON_ERROR_NONE) {

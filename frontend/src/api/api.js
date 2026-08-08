@@ -137,13 +137,31 @@ async function apiFetch(url, options = {}, intento = 0, finPeticion = null) {
   const fin = finPeticion ?? iniciarPeticionBackend()
   const esRaiz = finPeticion === null
 
+  // Method spoofing automático para servidores/hostings que bloquean PUT, DELETE o PATCH
+  const fetchOptions = { ...options }
+  let reqMethod = (fetchOptions.method || 'GET').toUpperCase()
+
+  if (['PUT', 'DELETE', 'PATCH'].includes(reqMethod)) {
+    fetchOptions.method = 'POST'
+    let bodyObj = {}
+    if (fetchOptions.body) {
+      try {
+        bodyObj = typeof fetchOptions.body === 'string' ? JSON.parse(fetchOptions.body) : fetchOptions.body
+      } catch {
+        bodyObj = {}
+      }
+    }
+    bodyObj._method = reqMethod
+    fetchOptions.body = JSON.stringify(bodyObj)
+  }
+
   try {
     let response
     try {
       response = await fetch(url, {
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-        ...options,
+        headers: { 'Content-Type': 'application/json', ...fetchOptions.headers },
+        ...fetchOptions,
       })
     } catch (err) {
       if (intento < RETRY_MAX && esReintentable(null, '', err)) {
@@ -488,3 +506,13 @@ export async function registrarAbonoCashea(datos) {
     body: JSON.stringify(datos),
   })
 }
+
+// POST /api/saldo_favor.php — Registrar saldo a favor para un cliente
+// @param {{ cliente_id: number, monto: number, fecha?: string, concepto?: string }} datos
+export async function registrarSaldoFavor(datos) {
+  return apiFetch(`${API_BASE}/saldo_favor.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}
+
