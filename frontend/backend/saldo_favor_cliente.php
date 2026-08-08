@@ -48,7 +48,10 @@ try {
          WHERE v.cliente_id = :cliente_id
            AND v.estado = 'completada'
            AND COALESCE(vd.realizado, 1) = 0
-           AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+           AND (
+             COALESCE(vd.pagado, 1) = 0
+             OR " . sqlDetalleSaldoFavorDisponible('vd', 'v') . "
+           )
          ORDER BY v.fecha_venta DESC, vd.id ASC"
     );
     $stmt->execute([':cliente_id' => $clienteId]);

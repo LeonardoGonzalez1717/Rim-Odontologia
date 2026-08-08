@@ -146,7 +146,9 @@ try {
     if ($metodo === 'GET') {
         $clienteId = (int) ($_GET['cliente_id'] ?? 0);
 
-        // Detalle de tratamientos prepagados de un cliente
+        $condSaldo = sqlDetalleSaldoFavorDisponible('vd', 'v');
+
+        // Detalle de saldo a favor no utilizado de un cliente
         if ($clienteId > 0) {
             $stmt = $pdo->prepare(
                 "SELECT
@@ -154,15 +156,16 @@ try {
                     v.cliente_id,
                     vd.precio AS monto,
                     DATE_FORMAT(v.fecha_venta, '%Y-%m-%d %H:%i') AS fecha,
-                    CONCAT('Tratamiento prepagado: ', s.nombre_servicio) AS concepto
+                    CONCAT(
+                      CASE WHEN COALESCE(vd.cashea, 0) = 1 THEN 'Cashea / saldo a favor: ' ELSE 'Tratamiento prepagado: ' END,
+                      s.nombre_servicio
+                    ) AS concepto
                  FROM venta_detalles vd
                  INNER JOIN ventas v ON v.id = vd.venta_id
                  INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
                  WHERE v.cliente_id = :cliente_id
                    AND v.estado = 'completada'
-                   AND COALESCE(vd.realizado, 1) = 0
-                   AND COALESCE(vd.pagado, 1) = 1
-                   AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                   AND {$condSaldo}
                  ORDER BY v.fecha_venta DESC, vd.id DESC"
             );
             $stmt->execute([':cliente_id' => $clienteId]);
@@ -179,7 +182,7 @@ try {
             exit;
         }
 
-        // Listado: clientes con saldo a favor (tratamientos prepagados)
+        // Listado: clientes con saldo a favor no utilizado
         $stmt = $pdo->query(
             "SELECT
                 c.id AS cliente_id,
@@ -192,9 +195,7 @@ try {
                   INNER JOIN ventas v ON v.id = vd.venta_id
                   WHERE v.cliente_id = c.id
                     AND v.estado = 'completada'
-                    AND vd.realizado = 0
-                    AND COALESCE(vd.pagado, 1) = 1
-                    AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                    AND {$condSaldo}
                 ), 0) AS saldo_prepagado
              FROM clientes c
              WHERE c.estado = 'activo'
@@ -227,15 +228,16 @@ try {
                     v.cliente_id,
                     vd.precio AS monto,
                     DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha,
-                    CONCAT('Tratamiento prepagado: ', s.nombre_servicio) AS concepto
+                    CONCAT(
+                      CASE WHEN COALESCE(vd.cashea, 0) = 1 THEN 'Cashea / saldo a favor: ' ELSE 'Tratamiento prepagado: ' END,
+                      s.nombre_servicio
+                    ) AS concepto
                  FROM venta_detalles vd
                  INNER JOIN ventas v ON v.id = vd.venta_id
                  INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
                  WHERE v.cliente_id IN ($placeholders)
                    AND v.estado = 'completada'
-                   AND COALESCE(vd.realizado, 1) = 0
-                   AND COALESCE(vd.pagado, 1) = 1
-                   AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                   AND {$condSaldo}
                  ORDER BY v.fecha_venta DESC, vd.id DESC"
             );
             $stmtMov->execute($ids);

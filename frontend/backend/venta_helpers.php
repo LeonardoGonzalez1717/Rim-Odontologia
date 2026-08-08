@@ -24,6 +24,26 @@ function sqlExcluirCasheaDuplicadoEnPendientes(string $alias = 'vd'): string
 }
 
 /**
+ * Detalle con saldo a favor aún disponible (cobrado y no realizado).
+ * Incluye Contado prepagado y Cashea cobrado solo si la venta tiene saldo_a_favor=1
+ * (p. ej. Cashea + monto inferior al total).
+ */
+function sqlDetalleSaldoFavorDisponible(string $aliasVd = 'vd', string $aliasV = 'v'): string
+{
+    return "(
+        COALESCE({$aliasVd}.realizado, 1) = 0
+        AND COALESCE({$aliasVd}.pagado, 1) = 1
+        AND (
+            COALESCE({$aliasVd}.cashea, 0) = 0
+            OR (
+                COALESCE({$aliasVd}.cashea, 0) = 1
+                AND COALESCE({$aliasV}.saldo_a_favor, 0) = 1
+            )
+        )
+    )";
+}
+
+/**
  * Indica si un detalle Cashea cobrado debe omitirse porque ya hay saldo pendiente del mismo tratamiento.
  *
  * @param list<array{cashea?: bool, pagado?: bool, realizado?: bool, servicio_id?: int}> $detalles
@@ -168,9 +188,7 @@ function calcularSaldoFavorDisponible(PDO $pdo, int $clienteId): float
          INNER JOIN ventas v ON v.id = vd.venta_id
          WHERE v.cliente_id = :cliente_id
            AND v.estado = 'completada'
-           AND vd.realizado = 0
-           AND COALESCE(vd.pagado, 1) = 1
-           AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd')
+           AND " . sqlDetalleSaldoFavorDisponible('vd', 'v')
     );
     $stmt->execute([':cliente_id' => $clienteId]);
 
@@ -203,9 +221,7 @@ function consumirSaldoFavorCliente(
          INNER JOIN ventas v ON v.id = vd.venta_id
          WHERE v.cliente_id = :cliente_id
            AND v.estado = 'completada'
-           AND COALESCE(vd.realizado, 1) = 0
-           AND COALESCE(vd.pagado, 1) = 1
-           AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+           AND " . sqlDetalleSaldoFavorDisponible('vd', 'v') . "
          ORDER BY v.fecha_venta ASC, vd.id ASC"
     );
     $stmtTrat->execute([':cliente_id' => $clienteId]);

@@ -109,9 +109,7 @@ try {
               INNER JOIN ventas v ON v.id = vd.venta_id
               WHERE v.cliente_id = c.id
                 AND v.estado = 'completada'
-                AND vd.realizado = 0
-                AND COALESCE(vd.pagado, 1) = 1
-                AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                AND " . sqlDetalleSaldoFavorDisponible('vd', 'v') . "
             ), 0) AS saldo_a_favor
          FROM clientes c
          WHERE c.estado = 'activo'
