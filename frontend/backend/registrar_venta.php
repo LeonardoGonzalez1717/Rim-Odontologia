@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 try {
     $body  = file_get_contents('php://input');
@@ -75,8 +76,25 @@ try {
     $doctor_id   = (int) $datos['doctor_id'];
     $cliente_id  = (int) $datos['cliente_id'];
     $infoInternet = obtenerFechaHoraInternet();
-    // Siempre usar hora de Internet/servidor; ignorar la hora enviada por el cliente
-    $fecha_venta = $infoInternet['datetime'];
+    $fecha_venta = trim((string) ($datos['fecha_venta'] ?? ''));
+
+    if ($fecha_venta === '') {
+        $fecha_venta = $infoInternet['datetime'];
+    } else {
+        $fecha_venta = str_replace('T', ' ', $fecha_venta);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_venta)) {
+            $fecha_venta .= ' 00:00:00';
+        } elseif (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $fecha_venta)) {
+            $fecha_venta .= ':00';
+        }
+
+        $dt = DateTime::createFromFormat('Y-m-d H:i:s', $fecha_venta);
+        if (!$dt || $dt->format('Y-m-d H:i:s') !== $fecha_venta) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'La fecha_venta no es válida. Use el formato YYYY-MM-DD HH:MM:SS.']);
+            exit;
+        }
+    }
 
     if ($doctor_id <= 0) {
         http_response_code(400);
@@ -209,7 +227,32 @@ try {
         $montoCaja = round($totalContado, 2);
     }
 
+    $saldoFavorAplicado = isset($datos['saldo_favor_aplicado'])
+        ? round(max(0, (float) $datos['saldo_favor_aplicado']), 2)
+        : 0.0;
+
     $pdo = obtenerConexion();
+
+    if ($saldoFavorAplicado > 0.001) {
+        $saldoDisponible = calcularSaldoFavorDisponible($pdo, $cliente_id);
+        if ($saldoFavorAplicado > $saldoDisponible + 0.01) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => "El saldo a favor aplicado ($saldoFavorAplicado) supera el disponible ($saldoDisponible).",
+            ]);
+            exit;
+        }
+        if ($saldoFavorAplicado > $montoCaja + 0.01) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => 'El descuento por saldo a favor no puede superar el monto a cobrar hoy.',
+            ]);
+            exit;
+        }
+        $montoCaja = round(max(0, $montoCaja - $saldoFavorAplicado), 2);
+    }
 
     $stmtCheck = $pdo->prepare("
         SELECT id FROM ventas 
@@ -271,6 +314,19 @@ try {
             ':cashea'      => $linea['cashea'],
             ':pagado'      => $linea['pagado'],
         ]);
+    }
+
+    if ($saldoFavorAplicado > 0.001) {
+        $consumido = consumirSaldoFavorCliente(
+            $pdo,
+            $cliente_id,
+            $saldoFavorAplicado,
+            $nuevoId,
+            $fecha_venta
+        );
+        if ($consumido + 0.01 < $saldoFavorAplicado) {
+            throw new RuntimeException('No se pudo aplicar todo el saldo a favor indicado.');
+        }
     }
 
     $pdo->commit();

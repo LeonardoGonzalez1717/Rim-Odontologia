@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'conexion.php';
+require_once 'venta_helpers.php';
 
 try {
     $pdo = obtenerConexion();
@@ -85,6 +86,8 @@ try {
 
     if ($metodo === 'GET') {
         $clienteId = (int) ($_GET['cliente_id'] ?? 0);
+
+        // Detalle de movimientos de un cliente
         if ($clienteId > 0) {
             $stmt = $pdo->prepare(
                 "SELECT id, cliente_id, monto, DATE_FORMAT(fecha, '%Y-%m-%d %H:%i') AS fecha, concepto
@@ -105,6 +108,95 @@ try {
             ]);
             exit;
         }
+
+        // Listado: clientes con saldo a favor disponible (> 0)
+        $stmt = $pdo->query(
+            "SELECT
+                c.id AS cliente_id,
+                c.cedula AS cliente_cedula,
+                c.nombre AS cliente_nombre,
+                c.telefono AS cliente_telefono,
+                COALESCE((
+                  SELECT SUM(sf.monto)
+                  FROM saldos_favor sf
+                  WHERE sf.cliente_id = c.id
+                ), 0) AS saldo_monetario,
+                COALESCE((
+                  SELECT SUM(vd.precio)
+                  FROM venta_detalles vd
+                  INNER JOIN ventas v ON v.id = vd.venta_id
+                  WHERE v.cliente_id = c.id
+                    AND v.estado = 'completada'
+                    AND vd.realizado = 0
+                    AND COALESCE(vd.pagado, 1) = 1
+                    AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                ), 0) AS saldo_prepagado
+             FROM clientes c
+             WHERE c.estado = 'activo'
+             HAVING (saldo_monetario + saldo_prepagado) > 0.001
+             ORDER BY (saldo_monetario + saldo_prepagado) DESC, c.nombre ASC"
+        );
+
+        $clientes = [];
+        $totalSaldo = 0.0;
+        foreach ($stmt->fetchAll() as $row) {
+            $monetario = round((float) $row['saldo_monetario'], 2);
+            $prepagado = round((float) $row['saldo_prepagado'], 2);
+            $saldo = round($monetario + $prepagado, 2);
+            $totalSaldo += $saldo;
+            $clientes[] = [
+                'cliente_id'       => (int) $row['cliente_id'],
+                'cliente_cedula'   => $row['cliente_cedula'],
+                'cliente_nombre'   => $row['cliente_nombre'],
+                'cliente_telefono' => $row['cliente_telefono'],
+                'saldo_a_favor'    => $saldo,
+                'saldo_monetario'  => max(0, $monetario),
+                'saldo_prepagado'  => max(0, $prepagado),
+            ];
+        }
+
+        // Movimientos recientes por cliente (para el detalle expandible)
+        if (count($clientes) > 0) {
+            $ids = array_column($clientes, 'cliente_id');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmtMov = $pdo->prepare(
+                "SELECT id, cliente_id, monto,
+                        DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha,
+                        concepto
+                 FROM saldos_favor
+                 WHERE cliente_id IN ($placeholders)
+                 ORDER BY fecha DESC, id DESC"
+            );
+            $stmtMov->execute($ids);
+            $movimientosPorCliente = [];
+            foreach ($stmtMov->fetchAll() as $mov) {
+                $cid = (int) $mov['cliente_id'];
+                if (!isset($movimientosPorCliente[$cid])) {
+                    $movimientosPorCliente[$cid] = [];
+                }
+                if (count($movimientosPorCliente[$cid]) >= 12) {
+                    continue;
+                }
+                $movimientosPorCliente[$cid][] = [
+                    'id'       => (int) $mov['id'],
+                    'monto'    => (float) $mov['monto'],
+                    'fecha'    => $mov['fecha'],
+                    'concepto' => $mov['concepto'],
+                ];
+            }
+            foreach ($clientes as &$c) {
+                $c['movimientos'] = $movimientosPorCliente[$c['cliente_id']] ?? [];
+            }
+            unset($c);
+        }
+
+        echo json_encode([
+            'success'        => true,
+            'clientes'       => $clientes,
+            'total_clientes' => count($clientes),
+            'total_saldo'    => round($totalSaldo, 2),
+        ]);
+        exit;
     }
 
     http_response_code(405);

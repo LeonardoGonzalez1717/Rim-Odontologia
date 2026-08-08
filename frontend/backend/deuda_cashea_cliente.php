@@ -96,10 +96,15 @@ try {
     );
     $stmt->execute([':cliente_id' => $clienteId]);
 
-    $ventas = array_map(function ($row) {
+    $ventas = array_values(array_filter(array_map(function ($row) {
         $deudaRestante     = round((float) $row['deuda_restante'], 2);
         $saldoPendiente    = round((float) $row['saldo_pendiente_pago'], 2);
         $deudaFinanciada   = round(max(0, $deudaRestante - $saldoPendiente), 2);
+
+        // Solo ventas con deuda Cashea financiada (abonable)
+        if ($deudaFinanciada <= 0.001) {
+            return null;
+        }
 
         return [
             'id'                   => (int)   $row['id'],
@@ -112,7 +117,7 @@ try {
             'deuda_financiada'     => $deudaFinanciada,
             'descripcion_cashea'   => $row['descripcion_cashea'],
         ];
-    }, $stmt->fetchAll());
+    }, $stmt->fetchAll())));
 
     $deudaTotal          = array_reduce($ventas, fn($carry, $v) => $carry + $v['deuda_restante'], 0.0);
     $saldoPendienteTotal = array_reduce($ventas, fn($carry, $v) => $carry + $v['saldo_pendiente_pago'], 0.0);

@@ -1,10 +1,10 @@
 <?php
 // =============================================================================
-// abono_venta.php — Abono a una venta con Cashea (prioridad: saldo pendiente tratamiento)
+// abono_venta.php — Abono exclusivo a deuda Cashea financiada de una venta
 // Método: POST
-// Body JSON: { venta_id, monto, concepto?, descripcion? }
-// El monto se aplica primero al saldo pendiente de tratamientos (pagado=0) y
-// el resto a la deuda Cashea financiada.
+// Body JSON: { venta_id, monto, concepto?, descripcion?, fecha_ingreso? }
+// Solo se permite si la venta tiene financiamiento Cashea con deuda pendiente.
+// No aplica a saldo pendiente de tratamientos al contado.
 // =============================================================================
 
 header('Access-Control-Allow-Origin: *');
@@ -190,29 +190,48 @@ try {
     $montoCaja = (float) $venta['monto_caja'];
     $abonos    = sumarAbonosVenta($pdo, $ventaId);
     $deudaRest = round(max(0, $total - $montoCaja - $abonos), 2);
+    $saldoTratamiento = saldoPendienteTratamientoVenta($pdo, $ventaId);
+    // Solo la porción financiada con Cashea es abonable por este endpoint
+    $deudaCashea = round(max(0, $deudaRest - $saldoTratamiento), 2);
 
-    if ($deudaRest <= 0.001) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Esta venta no tiene deuda pendiente.']);
-        exit;
-    }
-
-    if ($monto > $deudaRest + 0.001) {
+    if ($deudaCashea <= 0.001) {
         http_response_code(400);
         echo json_encode([
             'success' => false,
-            'message' => 'El abono no puede superar la deuda total de la venta ($' . number_format($deudaRest, 2, '.', '') . ').',
+            'message' => 'Solo se pueden registrar abonos sobre deuda Cashea. Esta venta no tiene deuda Cashea pendiente.',
         ]);
         exit;
     }
 
-    $saldoTratamiento = saldoPendienteTratamientoVenta($pdo, $ventaId);
-    $montoTratamiento = round(min($monto, $saldoTratamiento), 2);
+    if ($monto > $deudaCashea + 0.001) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'El abono no puede superar la deuda Cashea de la venta ($' . number_format($deudaCashea, 2, '.', '') . ').',
+        ]);
+        exit;
+    }
 
     $infoInternet = obtenerFechaHoraInternet();
-    $fechaIngreso = !empty($datos['fecha_ingreso'])
-        ? $datos['fecha_ingreso']
-        : $infoInternet['datetime'];
+    $fechaIngreso = trim((string) ($datos['fecha_ingreso'] ?? ''));
+
+    if ($fechaIngreso === '') {
+        $fechaIngreso = $infoInternet['datetime'];
+    } else {
+        $fechaIngreso = str_replace('T', ' ', $fechaIngreso);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaIngreso)) {
+            $fechaIngreso .= ' 00:00:00';
+        } elseif (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $fechaIngreso)) {
+            $fechaIngreso .= ':00';
+        }
+
+        $dt = DateTime::createFromFormat('Y-m-d H:i:s', $fechaIngreso);
+        if (!$dt || $dt->format('Y-m-d H:i:s') !== $fechaIngreso) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'La fecha_ingreso no es válida. Use el formato YYYY-MM-DD HH:MM:SS.']);
+            exit;
+        }
+    }
 
     $pdo->beginTransaction();
 
@@ -222,35 +241,20 @@ try {
         $descExtra = mb_substr($descExtra, 0, 180);
     }
 
-    $aplicadoTratamiento = aplicarPagoTratamientos($pdo, $ventaId, $montoTratamiento);
-    $montoCashea         = round($monto - $aplicadoTratamiento, 2);
+    $montoCashea = $monto;
+    $conceptoCashea = $descExtra !== ''
+        ? "Abono Cashea – venta #{$ventaId} – {$nombreCliente} – {$descExtra}"
+        : "Abono Cashea – venta #{$ventaId} – {$nombreCliente}";
 
     $stmtAjuste = $pdo->prepare(
         "INSERT INTO ajustes_cashea (monto, concepto, fecha_ingreso)
          VALUES (:monto, :concepto, :fecha_ingreso)"
     );
-
-    if ($aplicadoTratamiento > 0.001) {
-        $conceptoTrat = $descExtra !== ''
-            ? "Abono tratamiento – venta #{$ventaId} – {$nombreCliente} – {$descExtra}"
-            : "Abono tratamiento – venta #{$ventaId} – {$nombreCliente}";
-        $stmtAjuste->execute([
-            ':monto'         => $aplicadoTratamiento,
-            ':concepto'      => $conceptoTrat,
-            ':fecha_ingreso' => $fechaIngreso,
-        ]);
-    }
-
-    if ($montoCashea > 0.001) {
-        $conceptoCashea = $descExtra !== ''
-            ? "Abono Cashea – venta #{$ventaId} – {$nombreCliente} – {$descExtra}"
-            : "Abono Cashea – venta #{$ventaId} – {$nombreCliente}";
-        $stmtAjuste->execute([
-            ':monto'         => $montoCashea,
-            ':concepto'      => $conceptoCashea,
-            ':fecha_ingreso' => $fechaIngreso,
-        ]);
-    }
+    $stmtAjuste->execute([
+        ':monto'         => $montoCashea,
+        ':concepto'      => $conceptoCashea,
+        ':fecha_ingreso' => $fechaIngreso,
+    ]);
 
     $pdo->commit();
 
@@ -258,9 +262,9 @@ try {
         'success'              => true,
         'venta_id'             => $ventaId,
         'monto_total'          => $monto,
-        'monto_tratamiento'    => $aplicadoTratamiento,
+        'monto_tratamiento'    => 0.0,
         'monto_cashea'         => $montoCashea,
-        'deuda_restante_antes' => $deudaRest,
+        'deuda_restante_antes' => $deudaCashea,
         'message'              => 'Abono registrado correctamente.',
     ]);
 

@@ -475,6 +475,11 @@ export async function getSaldoFavorCliente(clienteId) {
   return apiFetch(`${API_BASE}/saldo_favor_cliente.php?cliente_id=${encodeURIComponent(clienteId)}`)
 }
 
+// GET /api/saldo_favor.php — Clientes con saldo a favor disponible (> 0)
+export async function getSaldosAFavor() {
+  return apiFetch(`${API_BASE}/saldo_favor.php`)
+}
+
 // GET /api/tratamientos_pendientes.php — Todos los tratamientos pendientes (saldo a favor)
 export async function getTratamientosPendientes() {
   return apiFetch(`${API_BASE}/tratamientos_pendientes.php`)
@@ -490,7 +495,7 @@ export async function marcarTratamientoRealizado(id) {
 }
 
 // POST /api/abono_venta.php — Abono con prioridad al saldo pendiente de tratamientos
-// @param {{ venta_id: number, monto: number, descripcion?: string }} datos
+// @param {{ venta_id: number, monto: number, descripcion?: string, fecha_ingreso?: string }} datos
 export async function registrarAbonoVenta(datos) {
   return apiFetch(`${API_BASE}/abono_venta.php`, {
     method: 'POST',

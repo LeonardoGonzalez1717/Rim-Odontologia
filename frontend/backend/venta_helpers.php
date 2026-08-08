@@ -157,6 +157,124 @@ function enriquecerVentasConDeudaCashea(PDO $pdo, array $ventas): array
  * @param list<array<string, mixed>> $ventas
  * @return list<array<string, mixed>>
  */
+/**
+ * Saldo a favor disponible del cliente (monetario + tratamientos prepagados no realizados).
+ */
+function calcularSaldoFavorDisponible(PDO $pdo, int $clienteId): float
+{
+    $stmt = $pdo->prepare(
+        "SELECT (COALESCE((
+              SELECT SUM(sf.monto)
+              FROM saldos_favor sf
+              WHERE sf.cliente_id = :cliente_id
+            ), 0) + COALESCE((
+              SELECT SUM(vd.precio)
+              FROM venta_detalles vd
+              INNER JOIN ventas v ON v.id = vd.venta_id
+              WHERE v.cliente_id = :cliente_id2
+                AND v.estado = 'completada'
+                AND vd.realizado = 0
+                AND COALESCE(vd.pagado, 1) = 1
+                AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+            ), 0)) AS saldo"
+    );
+    $stmt->execute([
+        ':cliente_id'  => $clienteId,
+        ':cliente_id2' => $clienteId,
+    ]);
+
+    return round(max(0, (float) $stmt->fetchColumn()), 2);
+}
+
+/**
+ * Descuenta saldo a favor del cliente al registrar una venta.
+ * Primero consume saldo monetario (saldos_favor) y luego tratamientos prepagados (FIFO).
+ *
+ * @return float Monto efectivamente consumido
+ */
+function consumirSaldoFavorCliente(
+    PDO $pdo,
+    int $clienteId,
+    float $monto,
+    int $ventaId,
+    string $fecha
+): float {
+    if ($monto <= 0.001) {
+        return 0.0;
+    }
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS saldos_favor (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cliente_id INT NOT NULL,
+            monto DECIMAL(10,2) NOT NULL,
+            fecha DATETIME NOT NULL,
+            concepto VARCHAR(255) DEFAULT 'Saldo a favor registrado',
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_cliente (cliente_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    );
+
+    $restante = round($monto, 2);
+    $consumido = 0.0;
+
+    $stmtMon = $pdo->prepare(
+        'SELECT COALESCE(SUM(monto), 0) FROM saldos_favor WHERE cliente_id = :cliente_id'
+    );
+    $stmtMon->execute([':cliente_id' => $clienteId]);
+    $saldoMonetario = max(0, round((float) $stmtMon->fetchColumn(), 2));
+
+    $usarMonetario = min($restante, $saldoMonetario);
+    if ($usarMonetario > 0.001) {
+        $stmtIns = $pdo->prepare(
+            'INSERT INTO saldos_favor (cliente_id, monto, fecha, concepto)
+             VALUES (:cliente_id, :monto, :fecha, :concepto)'
+        );
+        $stmtIns->execute([
+            ':cliente_id' => $clienteId,
+            ':monto'      => -$usarMonetario,
+            ':fecha'      => $fecha,
+            ':concepto'   => "Aplicado en venta #{$ventaId}",
+        ]);
+        $restante -= $usarMonetario;
+        $consumido += $usarMonetario;
+    }
+
+    if ($restante > 0.001) {
+        $stmtTrat = $pdo->prepare(
+            "SELECT vd.id, vd.precio
+             FROM venta_detalles vd
+             INNER JOIN ventas v ON v.id = vd.venta_id
+             WHERE v.cliente_id = :cliente_id
+               AND v.estado = 'completada'
+               AND COALESCE(vd.realizado, 1) = 0
+               AND COALESCE(vd.pagado, 1) = 1
+               AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+             ORDER BY v.fecha_venta ASC, vd.id ASC"
+        );
+        $stmtTrat->execute([':cliente_id' => $clienteId]);
+
+        $stmtMarcar = $pdo->prepare(
+            'UPDATE venta_detalles SET realizado = 1 WHERE id = :id'
+        );
+
+        while ($row = $stmtTrat->fetch(PDO::FETCH_ASSOC)) {
+            if ($restante <= 0.001) {
+                break;
+            }
+            $precio = round((float) $row['precio'], 2);
+            if ($precio <= 0.001 || $precio > $restante + 0.001) {
+                continue;
+            }
+            $stmtMarcar->execute([':id' => (int) $row['id']]);
+            $restante -= $precio;
+            $consumido += $precio;
+        }
+    }
+
+    return round($consumido, 2);
+}
+
 function enriquecerVentasConServicios(PDO $pdo, array $ventas): array
 {
     if (empty($ventas)) {

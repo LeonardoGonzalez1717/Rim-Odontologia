@@ -97,6 +97,15 @@ try {
                 AND COALESCE(vd.realizado, 1) = 0
                 AND COALESCE(vd.pagado, 1) = 0
             ) AS tiene_saldo_pendiente_cobro,
+            EXISTS (
+              SELECT 1
+              FROM venta_detalles vd
+              INNER JOIN ventas v ON v.id = vd.venta_id
+              WHERE v.cliente_id = c.id
+                AND v.estado = 'completada'
+                AND COALESCE(vd.realizado, 1) = 0
+                AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+            ) AS tiene_tratamientos_pendientes,
             COALESCE((
               SELECT SUM(vd.precio)
               FROM venta_detalles vd
@@ -130,11 +139,12 @@ try {
             $saldoPendienteCobro = round((float) $c['saldo_pendiente_cobro'], 2);
             return [
                 ...$c,
-                'tiene_deuda_cashea'          => (bool) $c['tiene_deuda_cashea'],
-                'tiene_saldo_pendiente_cobro' => (bool) $c['tiene_saldo_pendiente_cobro'],
-                'saldo_pendiente_cobro'       => $saldoPendienteCobro,
-                'saldo_a_favor'               => $saldo,
-                'tiene_saldo_a_favor'         => $saldo > 0.001,
+                'tiene_deuda_cashea'              => (bool) $c['tiene_deuda_cashea'],
+                'tiene_saldo_pendiente_cobro'     => (bool) $c['tiene_saldo_pendiente_cobro'],
+                'tiene_tratamientos_pendientes'  => (bool) $c['tiene_tratamientos_pendientes'],
+                'saldo_pendiente_cobro'           => $saldoPendienteCobro,
+                'saldo_a_favor'                   => $saldo,
+                'tiene_saldo_a_favor'             => $saldo > 0.001,
             ];
         },
         $stmtClientes->fetchAll()

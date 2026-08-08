@@ -15,6 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   X, Save, User, Stethoscope, Calendar, Loader2,
   CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle, Banknote,
+  Sparkles, DollarSign, FileText,
 } from 'lucide-react'
 import {
   registrarVenta,
@@ -150,6 +151,7 @@ const RegistrarVentaModal = ({
   onClose,
   onVentaGuardada,
   onAbonoRegistrado,
+  onSaldoFavorRegistrado,
   doctores = [],
   servicios = [],
   clientes = [],
@@ -159,24 +161,18 @@ const RegistrarVentaModal = ({
 }) => {
   const { cargando } = useServerDate()
   const [form, setForm] = useState(crearEstadoInicial)
+  const fechaManualRef = useRef(false)
 
-  // Mantener #fecha_venta siempre con la hora del servidor/internet (nunca la del PC)
+  // Inicializar fecha/hora con la del servidor una sola vez (luego es editable)
   useEffect(() => {
-    if (cargando) return
-
-    const actualizarFechaServidor = () => {
-      const fechaServidor = getActualServerDatetime()
-      if (!fechaServidor) return
-      setForm((prev) => (
-        prev.fecha_venta === fechaServidor
-          ? prev
-          : { ...prev, fecha_venta: fechaServidor }
-      ))
-    }
-
-    actualizarFechaServidor()
-    const intervalo = setInterval(actualizarFechaServidor, 1000)
-    return () => clearInterval(intervalo)
+    if (cargando || fechaManualRef.current) return
+    const fechaServidor = getActualServerDatetime()
+    if (!fechaServidor) return
+    setForm((prev) => (
+      prev.fecha_venta === fechaServidor
+        ? prev
+        : { ...prev, fecha_venta: fechaServidor }
+    ))
   }, [cargando])
 
   const [servicioSeleccionado, setServicioSeleccionado] = useState('')
@@ -200,6 +196,7 @@ const RegistrarVentaModal = ({
   const [modoSaldoFavor, setModoSaldoFavor] = useState(modoSaldoFavorInicial)
   const [montoSaldoFavor, setMontoSaldoFavor] = useState('')
   const [conceptoSaldoFavor, setConceptoSaldoFavor] = useState('')
+  const [aplicarSaldoFavor, setAplicarSaldoFavor] = useState(false)
 
   // ── Estado de deuda Cashea del cliente seleccionado ──
   const [deudaInfo, setDeudaInfo] = useState(null)  // null | { deuda_total, saldo_pendiente_pago, deuda_financiada, ventas_cashea }
@@ -361,6 +358,7 @@ const RegistrarVentaModal = ({
 
   const clienteTieneDeuda = clienteSeleccionado?.tiene_deuda_cashea === true
   const clienteTieneSaldoPendienteCobro = clienteSeleccionado?.tiene_saldo_pendiente_cobro === true
+  const clienteTieneTratamientosPendientes = clienteSeleccionado?.tiene_tratamientos_pendientes === true
 
   const clienteSaldoFavor = clienteSeleccionado?.saldo_a_favor ?? 0
   const clienteTieneSaldoFavor = clienteSeleccionado?.tiene_saldo_a_favor === true
@@ -370,14 +368,17 @@ const RegistrarVentaModal = ({
   const saldoPendientePagoCashea = deudaInfo?.saldo_pendiente_pago ?? 0
   const deudaCasheaPendiente = deudaInfo?.deuda_financiada ?? 0
   const saldoAFavorPrepagado = Math.max(0, clienteSaldoFavor - saldoPendientePagoCashea)
+  // Solo ventas con deuda Cashea financiada (no saldo pendiente de tratamientos al contado)
   const ventasConDeudaCashea = useMemo(
-    () => (deudaInfo?.ventas_cashea ?? []).filter((v) => (v.deuda_restante ?? 0) > 0.001),
+    () => (deudaInfo?.ventas_cashea ?? []).filter(
+      (v) => (v.deuda_financiada ?? Math.max(0, (v.deuda_restante ?? 0) - (v.saldo_pendiente_pago ?? 0))) > 0.001,
+    ),
     [deudaInfo],
   )
-  // Solo deuda Cashea financiada: no confundir con saldo pendiente de pago parcial al contado
+  // Abono únicamente si existe deuda Cashea registrada
   const puedeAbonar = clienteTieneDeuda
     || deudaCasheaPendiente > 0.001
-    || ((deudaInfo?.ventas_cashea?.length ?? 0) > 0 && (deudaInfo?.deuda_total ?? 0) > 0.001)
+    || ventasConDeudaCashea.length > 0
 
   const ventaAbonoSeleccionada = useMemo(
     () => deudaInfo?.ventas_cashea?.find((v) => String(v.id) === ventaAbonoId) ?? null,
@@ -391,6 +392,32 @@ const RegistrarVentaModal = ({
       (ventaAbonoSeleccionada.pagos_posteriores ?? 0)
     )
   }, [ventaAbonoSeleccionada])
+
+  const montoDescuentoSaldoFavor = useMemo(() => {
+    if (!aplicarSaldoFavor || !clienteTieneSaldoFavor || montoCaja <= 0.001) return 0
+    return Math.round(Math.min(clienteSaldoFavor, montoCaja) * 100) / 100
+  }, [aplicarSaldoFavor, clienteTieneSaldoFavor, clienteSaldoFavor, montoCaja])
+
+  const montoCajaFinal = useMemo(
+    () => Math.round(Math.max(0, montoCaja - montoDescuentoSaldoFavor) * 100) / 100,
+    [montoCaja, montoDescuentoSaldoFavor],
+  )
+
+  const puedeAplicarSaldoFavor = Boolean(
+    form.cliente_id
+    && clienteTieneSaldoFavor
+    && clienteSaldoFavor > 0.001
+    && lineas.length > 0
+    && montoCaja > 0.001
+    && !modoSaldoFavor
+    && !modoAbono
+    && !esPagoPendiente,
+  )
+
+  const modoSaldoFavorRef = useRef(modoSaldoFavor)
+  useEffect(() => {
+    modoSaldoFavorRef.current = modoSaldoFavor
+  }, [modoSaldoFavor])
 
   // ── Cargar deuda Cashea al seleccionar un cliente con deuda ──
   const cargarDeuda = useCallback(async (clienteId) => {
@@ -406,12 +433,15 @@ const RegistrarVentaModal = ({
       const data = await getDeudaCasheaCliente(clienteId)
       setDeudaInfo(data)
       const ventasAbonables = (data.ventas_cashea ?? []).filter(
-        (v) => (v.deuda_restante ?? 0) > 0.001,
+        (v) => (v.deuda_financiada ?? Math.max(0, (v.deuda_restante ?? 0) - (v.saldo_pendiente_pago ?? 0))) > 0.001,
       )
       if (ventasAbonables.length > 0) {
         setVentaAbonoId(String(ventasAbonables[0].id))
+      } else {
+        setModoAbono(false)
       }
-      if ((data.deuda_financiada ?? 0) > 0.001) {
+      // Solo abrir abono si hay deuda Cashea financiada (no saldo pendiente al contado)
+      if (!modoSaldoFavorRef.current && (data.deuda_financiada ?? 0) > 0.001) {
         setModoAbono(true)
         setTimeout(() => {
           deudaSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -444,7 +474,14 @@ const RegistrarVentaModal = ({
   useEffect(() => {
     setMostrarTratamientosFavor(false)
     setTratamientosFavor([])
+    setAplicarSaldoFavor(false)
   }, [form.cliente_id])
+
+  useEffect(() => {
+    if (!puedeAplicarSaldoFavor && aplicarSaldoFavor) {
+      setAplicarSaldoFavor(false)
+    }
+  }, [puedeAplicarSaldoFavor, aplicarSaldoFavor])
 
   const handleVerTratamientosFavor = async () => {
     if (mostrarTratamientosFavor) {
@@ -495,9 +532,20 @@ const RegistrarVentaModal = ({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  const formatearFechaEnvio = (fechaLocal) => {
+    if (!fechaLocal) return ''
+    if (fechaLocal.includes('T')) {
+      const base = fechaLocal.replace('T', ' ')
+      return base.length === 16 ? `${base}:00` : base
+    }
+    return fechaLocal.length === 16 ? `${fechaLocal}:00` : fechaLocal
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
-    if (name === 'fecha_venta') return
+    if (name === 'fecha_venta') {
+      fechaManualRef.current = true
+    }
     setError('')
     setForm((prev) => ({ ...prev, [name]: value }))
   }
@@ -521,7 +569,7 @@ const RegistrarVentaModal = ({
         precio: parseFloat(servicio.precio),
         precio_catalogo: parseFloat(servicio.precio),
         precio_servicio: parseFloat(servicio.precio),
-        realizado: true, // desmarcado = realizado hoy; marcado "Saldo a favor" = pendiente de realizar
+        realizado: true, // marcado "Hoy" = realizado hoy; desmarcado = tratamientos pendientes
         cashea: false,   // contado por defecto; se marca para financiar
       },
     ])
@@ -534,7 +582,7 @@ const RegistrarVentaModal = ({
       prev.map((l) => {
         if (l.key !== key) return l
         if (montoPendienteLinea(l) > 0.001) return l
-        // Marcado = pagado hoy pero pendiente de realizar (saldo a favor)
+        // Marcado "Hoy" = realizado; desmarcado = pendiente de realizar
         return { ...l, realizado: l.realizado === false ? true : false }
       }),
     )
@@ -739,8 +787,11 @@ const RegistrarVentaModal = ({
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
-    if (cargando) return 'Esperando la hora del servidor…'
-    if (!form.fecha_venta) return 'Esperando la hora del servidor. Verifica tu conexión a Internet.'
+    if (!form.fecha_venta) {
+      return cargando
+        ? 'Sincronizando la hora del servidor…'
+        : 'Indica la fecha y hora de la venta.'
+    }
     if (total <= 0) return 'El monto debe ser mayor a $0.'
     if (tieneCashea) {
       const monto = parseFloat(montoCashea)
@@ -791,8 +842,12 @@ const RegistrarVentaModal = ({
       setError('')
 
       try {
-        const fechaActual = getActualServerDatetime() || form.fecha_venta
-        const fechaFormateada = fechaActual ? fechaActual.replace('T', ' ') + ':00' : ''
+        if (!form.fecha_venta) {
+          setError('Indica la fecha y hora del registro.')
+          setLoading(false)
+          return
+        }
+        const fechaFormateada = formatearFechaEnvio(form.fecha_venta)
 
         await registrarSaldoFavor({
           cliente_id: parseInt(form.cliente_id, 10),
@@ -809,6 +864,7 @@ const RegistrarVentaModal = ({
           setMontoSaldoFavor('')
           setConceptoSaldoFavor('')
           setModoSaldoFavor(false)
+          onSaldoFavorRegistrado?.()
           onClose()
         }, 1200)
       } catch (err) {
@@ -829,12 +885,10 @@ const RegistrarVentaModal = ({
     setError('')
 
     try {
-      const fechaActual = getActualServerDatetime()
-      if (!fechaActual) {
-        throw new Error('No se pudo obtener la hora del servidor. Verifica tu conexión a Internet.')
+      if (!form.fecha_venta) {
+        throw new Error('Indica la fecha y hora de la venta.')
       }
-      setForm((prev) => ({ ...prev, fecha_venta: fechaActual }))
-      const fechaFormateada = fechaActual.replace('T', ' ') + ':00'
+      const fechaFormateada = formatearFechaEnvio(form.fecha_venta)
 
       const serviciosExpandidos = expandirLineasParaEnvio(lineas)
 
@@ -844,8 +898,9 @@ const RegistrarVentaModal = ({
         fecha_venta: fechaFormateada,
         total,
         cashea: tieneCashea,
-        monto_caja: montoCaja,
+        monto_caja: montoCajaFinal,
         monto_caja_cashea: tieneCashea ? montoInicialCashea : null,
+        saldo_favor_aplicado: montoDescuentoSaldoFavor > 0.001 ? montoDescuentoSaldoFavor : null,
         descripcion_cashea: tieneCashea && descripcionCashea.trim()
           ? descripcionCashea.trim()
           : null,
@@ -861,7 +916,8 @@ const RegistrarVentaModal = ({
         fecha_venta: fechaFormateada,
         total,
         cashea: tieneCashea,
-        monto_caja: montoCaja,
+        monto_caja: montoCajaFinal,
+        saldo_favor_aplicado: montoDescuentoSaldoFavor,
         servicios: serviciosExpandidos.map((s, i) => ({
           nombre: lineas.find((l) => l.servicio_id === s.servicio_id)?.nombre
             ?? `Tratamiento ${i + 1}`,
@@ -879,6 +935,10 @@ const RegistrarVentaModal = ({
         pagoPendienteRef.current = null
       }
 
+      if (onRecargarClientes && montoDescuentoSaldoFavor > 0.001) {
+        await onRecargarClientes()
+      }
+
       setExito(true)
       setTimeout(() => {
         const resetForm = () => {
@@ -893,6 +953,7 @@ const RegistrarVentaModal = ({
           setMontoCasheaEditado(false)
           setMontoContadoInput(null)
           setMontoCasheaGrupoInput(null)
+          setAplicarSaldoFavor(false)
         }
         setExito(false)
         resetForm()
@@ -931,8 +992,21 @@ const RegistrarVentaModal = ({
     const ventaSeleccionada = deudaInfo?.ventas_cashea?.find(
       (v) => String(v.id) === ventaAbonoId
     )
-    if (ventaSeleccionada && monto > ventaSeleccionada.deuda_restante + 0.001) {
-      setErrorAbono(`El abono no puede superar la deuda total de esa venta ($${ventaSeleccionada.deuda_restante.toFixed(2)}).`)
+    const deudaCasheaVenta = ventaSeleccionada
+      ? (ventaSeleccionada.deuda_financiada
+        ?? Math.max(0, (ventaSeleccionada.deuda_restante ?? 0) - (ventaSeleccionada.saldo_pendiente_pago ?? 0)))
+      : 0
+    if (!ventaSeleccionada || deudaCasheaVenta <= 0.001) {
+      setErrorAbono('Solo se pueden registrar abonos sobre deuda Cashea.')
+      return
+    }
+    if (monto > deudaCasheaVenta + 0.001) {
+      setErrorAbono(`El abono no puede superar la deuda Cashea de esa venta ($${deudaCasheaVenta.toFixed(2)}).`)
+      return
+    }
+
+    if (!form.fecha_venta) {
+      setErrorAbono('Indica la fecha y hora del pago.')
       return
     }
 
@@ -943,6 +1017,7 @@ const RegistrarVentaModal = ({
         venta_id: parseInt(ventaAbonoId, 10),
         monto,
         descripcion: desc || undefined,
+        fecha_ingreso: formatearFechaEnvio(form.fecha_venta),
       })
       setExitoAbono(true)
       setMontoAbono('')
@@ -961,7 +1036,7 @@ const RegistrarVentaModal = ({
     }
   }
 
-  const mostrarFormularioVenta = esPagoPendiente || !puedeAbonar || !modoAbono
+  const mostrarFormularioVenta = !modoSaldoFavor && (esPagoPendiente || !puedeAbonar || !modoAbono)
 
   const serviciosDisponibles = servicios
 
@@ -1119,7 +1194,7 @@ const RegistrarVentaModal = ({
                   )}
                 </div>
 
-                {mostrarFormularioVenta && !modoSaldoFavor && (
+                {mostrarFormularioVenta && (
                   <div className="min-w-0">
                     <label htmlFor="doctor_id" className="form-label">
                       <User size={14} className="inline mr-1.5 text-pink-500" />
@@ -1189,10 +1264,11 @@ const RegistrarVentaModal = ({
                     <input
                       id="fecha_saldo_favor"
                       type="datetime-local"
+                      name="fecha_venta"
                       value={form.fecha_venta}
-                      readOnly
-                      tabIndex={-1}
-                      className="form-input bg-slate-100 text-slate-600 cursor-default text-xs"
+                      onChange={handleChange}
+                      className="form-input text-xs bg-white"
+                      required
                     />
                   </div>
 
@@ -1214,7 +1290,7 @@ const RegistrarVentaModal = ({
               )}
 
               {/* ── Indicador de saldo a favor / pendiente del cliente ── */}
-              {form.cliente_id && (clienteTieneSaldoFavor || clienteSaldoFavor > 0.001 || clienteTieneSaldoPendienteCobro || saldoPendientePagoCashea > 0.001) && (
+              {!modoSaldoFavor && form.cliente_id && (clienteTieneSaldoFavor || clienteSaldoFavor > 0.001 || clienteTieneSaldoPendienteCobro || saldoPendientePagoCashea > 0.001) && (
                 <div className="space-y-2 animate-slide-up">
                   <div className="flex items-center justify-between gap-3 px-3 py-2.5
                               bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
@@ -1237,15 +1313,48 @@ const RegistrarVentaModal = ({
                         ) : null}
                       </span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleVerTratamientosFavor}
-                      className="flex-shrink-0 text-emerald-700 font-semibold hover:text-emerald-900
-                             underline underline-offset-2 transition-colors"
-                    >
-                      {mostrarTratamientosFavor ? 'Ocultar' : 'Ver tratamientos'}
-                    </button>
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      {puedeAplicarSaldoFavor && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError('')
+                            setAplicarSaldoFavor((prev) => !prev)
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                            aplicarSaldoFavor
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {aplicarSaldoFavor ? 'Quitar descuento' : 'Aplicar saldo a favor'}
+                        </button>
+                      )}
+                      {/* Solo si hay tratamientos pendientes; saldo a favor puro no tiene lista */}
+                      {clienteTieneTratamientosPendientes && (
+                        <button
+                          type="button"
+                          onClick={handleVerTratamientosFavor}
+                          className="text-emerald-700 font-semibold hover:text-emerald-900
+                                 underline underline-offset-2 transition-colors"
+                        >
+                          {mostrarTratamientosFavor ? 'Ocultar' : 'Ver tratamientos'}
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {aplicarSaldoFavor && montoDescuentoSaldoFavor > 0.001 && (
+                    <div className="flex items-center justify-between gap-3 px-3 py-2
+                                bg-emerald-100/80 border border-emerald-300 rounded-xl text-xs text-emerald-900">
+                      <span className="font-medium">
+                        Descuento por saldo a favor aplicado
+                      </span>
+                      <span className="font-bold">
+                        −${montoDescuentoSaldoFavor.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
 
                   {mostrarTratamientosFavor && (
                     <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 space-y-2">
@@ -1285,7 +1394,7 @@ const RegistrarVentaModal = ({
               )}
 
               {/* ── Aviso + toggle de modo (sólo si cliente tiene deuda Cashea) ── */}
-              {form.cliente_id && puedeAbonar && !esPagoPendiente && (
+              {!modoSaldoFavor && form.cliente_id && puedeAbonar && !esPagoPendiente && (
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5
                             bg-orange-50 border border-orange-200 rounded-xl animate-slide-up">
                   <span className="text-xs text-orange-700 flex flex-col gap-0.5 min-w-0">
@@ -1304,12 +1413,6 @@ const RegistrarVentaModal = ({
                         <>Cliente con deuda Cashea</>
                       )}
                     </span>
-                    {deudaInfo && saldoPendientePagoCashea > 0.001 && deudaCasheaPendiente > 0.001 && (
-                      <span className="text-orange-600/90 pl-5">
-                        Total adeudado (tratamientos + Cashea):{' '}
-                        <span className="font-semibold">${deudaInfo.deuda_total.toFixed(2)}</span>
-                      </span>
-                    )}
                   </span>
                   <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
                     <button
@@ -1333,7 +1436,7 @@ const RegistrarVentaModal = ({
               )}
 
               {/* ── Panel de deuda — sólo en modo abono ── */}
-              {form.cliente_id && puedeAbonar && modoAbono && !esPagoPendiente && (
+              {!modoSaldoFavor && form.cliente_id && puedeAbonar && modoAbono && !esPagoPendiente && (
                 <div ref={deudaSectionRef} className="space-y-3 animate-slide-up">
                   {loadingDeuda && (
                     <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
@@ -1351,11 +1454,15 @@ const RegistrarVentaModal = ({
                           onChange={(e) => { setErrorAbono(''); setVentaAbonoId(e.target.value) }}
                           className="form-input"
                         >
-                          {ventasConDeudaCashea.map((v) => (
-                            <option key={v.id} value={String(v.id)}>
-                              {formatearDMAa(v.fecha)} — ${v.deuda_restante.toFixed(2)} adeudado
-                            </option>
-                          ))}
+                          {ventasConDeudaCashea.map((v) => {
+                            const deudaCashea = v.deuda_financiada
+                              ?? Math.max(0, (v.deuda_restante ?? 0) - (v.saldo_pendiente_pago ?? 0))
+                            return (
+                              <option key={v.id} value={String(v.id)}>
+                                {formatearDMAa(v.fecha)} — ${deudaCashea.toFixed(2)} deuda Cashea
+                              </option>
+                            )
+                          })}
                         </select>
                         {ventaAbonoSeleccionada && (
                           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
@@ -1369,18 +1476,17 @@ const RegistrarVentaModal = ({
                               Ya pagado:{' '}
                               <span className="font-semibold">${montoYaPagado.toFixed(2)}</span>
                             </span>
-                            {(ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
-                              <span className="text-emerald-700">
-                                Pendiente tratamientos:{' '}
-                                <span className="font-semibold">
-                                  ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}
-                                </span>
-                              </span>
-                            )}
                             <span className="text-amber-700">
                               Deuda Cashea:{' '}
                               <span className="font-semibold">
-                                ${(ventaAbonoSeleccionada.deuda_financiada ?? ventaAbonoSeleccionada.deuda_restante).toFixed(2)}
+                                ${(
+                                  ventaAbonoSeleccionada.deuda_financiada
+                                  ?? Math.max(
+                                    0,
+                                    (ventaAbonoSeleccionada.deuda_restante ?? 0)
+                                      - (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0),
+                                  )
+                                ).toFixed(2)}
                               </span>
                             </span>
                           </div>
@@ -1401,12 +1507,28 @@ const RegistrarVentaModal = ({
                             className="form-input pl-8"
                           />
                         </div>
-                        {ventaAbonoSeleccionada && (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0) > 0.001 && (
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            Se aplica primero al saldo pendiente de tratamientos (
-                            ${ventaAbonoSeleccionada.saldo_pendiente_pago.toFixed(2)}); el resto va a Cashea.
-                          </p>
-                        )}
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Solo se aplica a la deuda Cashea financiada de la venta.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="fecha_abono" className="form-label">
+                          <Calendar size={14} className="inline mr-1.5 text-pink-500" />
+                          Fecha y Hora
+                        </label>
+                        <input
+                          id="fecha_abono"
+                          type="datetime-local"
+                          name="fecha_venta"
+                          value={form.fecha_venta}
+                          onChange={(e) => {
+                            setErrorAbono('')
+                            handleChange(e)
+                          }}
+                          className="form-input"
+                          required
+                        />
                       </div>
 
                       <div>
@@ -1556,7 +1678,7 @@ const RegistrarVentaModal = ({
                                   </span>
                                 ) : linea.realizado === false && (
                                   <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
-                                    Saldo a favor
+                                    Trat. pendiente
                                   </span>
                                 )}
                               </div>
@@ -1587,20 +1709,22 @@ const RegistrarVentaModal = ({
                                         ? linea.cashea
                                           ? `Inicial Cashea $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
                                           : `Pagado $${linea.precio.toFixed(2)} · Pendiente $${montoPendienteLinea(linea).toFixed(2)} en tratamientos`
-                                        : 'Cliente pagó el tratamiento hoy; quedará pendiente de realizar (saldo a favor)'
+                                        : linea.realizado === false
+                                          ? 'Desmarcado: el tratamiento quedará en pendientes'
+                                          : 'Marcado: el tratamiento se realiza hoy'
                                     }
                                   >
                                     <input
                                       type="checkbox"
-                                      checked={linea.realizado === false}
+                                      checked={linea.realizado !== false}
                                       disabled={montoPendienteLinea(linea) > 0.001}
                                       onChange={() => handleToggleRealizado(linea.key)}
-                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600
-                                     focus:ring-emerald-500 cursor-pointer
+                                      className="w-4 h-4 rounded border-slate-300 text-pink-600
+                                     focus:ring-pink-500 cursor-pointer
                                      disabled:opacity-60 disabled:cursor-default"
                                     />
-                                    <span className={linea.realizado === false ? 'text-emerald-700 font-medium' : ''}>
-                                      Saldo a favor
+                                    <span className={linea.realizado !== false ? 'text-pink-700 font-medium' : ''}>
+                                      Hoy
                                     </span>
                                   </label>
 
@@ -1662,17 +1786,15 @@ const RegistrarVentaModal = ({
                       type="datetime-local"
                       name="fecha_venta"
                       value={form.fecha_venta}
-                      readOnly
-                      tabIndex={-1}
-                      className="form-input bg-slate-50 text-slate-600 cursor-default"
-                      aria-label="Fecha y hora del servidor"
-                      title="Hora sincronizada con el servidor e Internet (no editable)"
+                      onChange={handleChange}
+                      className="form-input"
+                      aria-label="Fecha y hora de la venta"
                       required
                     />
                     <p className="text-xs text-slate-500 mt-1">
-                      {cargando || !form.fecha_venta
+                      {cargando && !form.fecha_venta
                         ? 'Sincronizando hora con el servidor…'
-                        : 'Hora del servidor e Internet (no usa el reloj de esta computadora)'}
+                        : 'Puedes ajustar la fecha y hora del registro'}
                     </p>
                   </div>
 
@@ -1815,9 +1937,14 @@ const RegistrarVentaModal = ({
                       <p className="text-lg font-bold text-pink-800">
                         ${total > 0 ? total.toFixed(2) : '0.00'}
                       </p>
-                      {tieneCashea || totalPendiente > 0.001 ? (
+                      {tieneCashea || totalPendiente > 0.001 || montoDescuentoSaldoFavor > 0.001 ? (
                         <div className="text-[11px] text-pink-700 mt-1 font-medium space-y-0.5">
-                          <p>Caja hoy: ${montoCaja.toFixed(2)}</p>
+                          {montoDescuentoSaldoFavor > 0.001 && (
+                            <p className="text-emerald-700">
+                              Saldo aplicado: −${montoDescuentoSaldoFavor.toFixed(2)}
+                            </p>
+                          )}
+                          <p>Caja hoy: ${montoCajaFinal.toFixed(2)}</p>
                           {totalPendiente > 0.001 && !tieneCashea && (
                             <p>Pendiente: ${totalPendiente.toFixed(2)}</p>
                           )}
@@ -1858,7 +1985,7 @@ const RegistrarVentaModal = ({
               ) : mostrarFormularioVenta ? (
                 <button
                   type="submit"
-                  disabled={loading || exito || lineas.length === 0 || cargando || !form.fecha_venta}
+                  disabled={loading || exito || lineas.length === 0 || !form.fecha_venta}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {loading ? (

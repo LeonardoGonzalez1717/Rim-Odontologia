@@ -15,6 +15,7 @@ import {
 import Dashboard from './components/Dashboard'
 import RegistrarVentaModal from './components/RegistrarVentaModal'
 import TratamientosPendientes from './components/TratamientosPendientes'
+import SaldosAFavor from './components/SaldosAFavor'
 import Doctores from './pages/Doctores'
 import Servicios from './pages/Servicios'
 import Clientes from './pages/Clientes'
@@ -40,6 +41,7 @@ const PAGES = [
   { id: 'clientes', label: 'Clientes', icon: Contact, section: 'Gestión' },
   { id: 'servicios', label: 'Tratamientos', icon: Stethoscope, section: 'Gestión' },
   { id: 'pendientes', label: 'Tratamientos pendientes', icon: ClipboardList, section: 'Gestión' },
+  { id: 'saldos-favor', label: 'Saldo a favor', icon: Sparkles, section: 'Gestión' },
   { id: 'usuarios', label: 'Perfiles', icon: Users, section: 'Administración' },
 ]
 
@@ -209,6 +211,7 @@ function AdminApp() {
   const [modoSaldoFavorInicial, setModoSaldoFavorInicial] = useState(false)
   const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
   const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
+  const [saldosFavorReloadKey, setSaldosFavorReloadKey] = useState(0)
   const [cancelando, setCancelando] = useState(null)
   const [toast, setToast] = useState(null)
 
@@ -353,6 +356,7 @@ function AdminApp() {
   const handleVentaGuardada = useCallback((venta) => {
     setModalAbierto(false)
     setPagoPendienteInicial(null)
+    setSaldosFavorReloadKey((k) => k + 1)
     if (venta?.es_pago_pendiente) {
       setPendientesReloadKey((k) => k + 1)
       setToast({ mensaje: 'Pago del saldo pendiente registrado correctamente.', tipo: 'success' })
@@ -362,6 +366,11 @@ function AdminApp() {
     setPaginaVentas(1)
     cargarDashboardSecuencial(fechaVentas, 1)
   }, [fechaVentas, cargarDashboardSecuencial])
+
+  const handleSaldoFavorRegistrado = useCallback(() => {
+    setSaldosFavorReloadKey((k) => k + 1)
+    setToast({ mensaje: '¡Saldo a favor registrado!', tipo: 'success' })
+  }, [])
 
   const handleRegistrarPagoPendiente = useCallback((pago) => {
     setPagoPendienteInicial(pago)
@@ -578,6 +587,17 @@ function AdminApp() {
             />
           )}
 
+          {paginaActual === 'saldos-favor' && (
+            <SaldosAFavor
+              onToast={handleToastPendientes}
+              onRegistrarSaldo={() => {
+                setModoSaldoFavorInicial(true)
+                setModalAbierto(true)
+              }}
+              reloadKey={saldosFavorReloadKey}
+            />
+          )}
+
           {/* ── Vista: Usuarios ── */}
           {paginaActual === 'usuarios' && (
             <Usuarios onToast={setToast} />
@@ -602,6 +622,7 @@ function AdminApp() {
           }}
           onVentaGuardada={handleVentaGuardada}
           onAbonoRegistrado={handleAbonoRegistrado}
+          onSaldoFavorRegistrado={handleSaldoFavorRegistrado}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}

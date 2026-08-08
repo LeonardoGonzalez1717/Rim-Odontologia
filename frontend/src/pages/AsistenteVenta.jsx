@@ -10,6 +10,7 @@ import RegistrarVentaModal from '../components/RegistrarVentaModal'
 import ClienteModal from '../components/ClienteModal'
 import NotaEntregaModal from '../components/NotaEntregaModal'
 import TratamientosPendientes from '../components/TratamientosPendientes'
+import SaldosAFavor from '../components/SaldosAFavor'
 import Paginacion from '../components/Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { getDatos, getClientes } from '../api/api'
@@ -328,6 +329,7 @@ const AsistenteVenta = () => {
   const [modoSaldoFavorInicial, setModoSaldoFavorInicial] = useState(false)
   const [pagoPendienteInicial, setPagoPendienteInicial] = useState(null)
   const [pendientesReloadKey, setPendientesReloadKey] = useState(0)
+  const [saldosFavorReloadKey, setSaldosFavorReloadKey] = useState(0)
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false)
   const [toast, setToast] = useState(null)
   const [ventaParaNota, setVentaParaNota] = useState(null)
@@ -353,12 +355,18 @@ const AsistenteVenta = () => {
   const handleVentaGuardada = useCallback((venta) => {
     setModalAbierto(false)
     setPagoPendienteInicial(null)
+    setSaldosFavorReloadKey((k) => k + 1)
     if (venta?.es_pago_pendiente) {
       setPendientesReloadKey((k) => k + 1)
       setToast({ mensaje: 'Pago del saldo pendiente registrado correctamente.' })
     } else {
       setVentaParaNota(venta)
     }
+  }, [])
+
+  const handleSaldoFavorRegistrado = useCallback(() => {
+    setSaldosFavorReloadKey((k) => k + 1)
+    setToast({ mensaje: '¡Saldo a favor registrado!' })
   }, [])
 
   const handleRegistrarPagoPendiente = useCallback((pago) => {
@@ -467,11 +475,8 @@ const AsistenteVenta = () => {
               <TarjetaOpcion
                 icono={Sparkles}
                 titulo="Saldo a Favor"
-                descripcion="Registra un abono o saldo a favor a un cliente."
-                onClick={() => {
-                  setModoSaldoFavorInicial(true)
-                  setModalAbierto(true)
-                }}
+                descripcion="Consulta clientes con crédito disponible o registra un nuevo saldo."
+                onClick={() => setVista('saldos-favor')}
               />
               <TarjetaOpcion
                 icono={UserPlus}
@@ -518,6 +523,18 @@ const AsistenteVenta = () => {
           />
         )}
 
+        {vista === 'saldos-favor' && (
+          <SaldosAFavor
+            onVolver={handleVolverInicio}
+            onToast={handleToastPendientes}
+            onRegistrarSaldo={() => {
+              setModoSaldoFavorInicial(true)
+              setModalAbierto(true)
+            }}
+            reloadKey={saldosFavorReloadKey}
+          />
+        )}
+
         {vista === 'tratamientos' && (
           <VistaTratamientos
             servicios={servicios}
@@ -536,6 +553,7 @@ const AsistenteVenta = () => {
           }}
           onVentaGuardada={handleVentaGuardada}
           onAbonoRegistrado={handleVentaGuardada}
+          onSaldoFavorRegistrado={handleSaldoFavorRegistrado}
           doctores={doctores}
           servicios={servicios}
           clientes={clientes}
