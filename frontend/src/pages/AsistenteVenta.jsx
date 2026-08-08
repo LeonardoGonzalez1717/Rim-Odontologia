@@ -408,30 +408,15 @@ const AsistenteVenta = () => {
 
         <div className="flex items-center gap-2 sm:gap-3">
           {vista === 'inicio' && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setModoSaldoFavorInicial(true)
-                  setModalAbierto(true)
-                }}
-                disabled={loading}
-                className="btn-secondary flex items-center gap-2 text-sm py-2 px-3 sm:px-4 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-              >
-                <Sparkles size={16} />
-                <span className="hidden sm:inline">Saldo a Favor</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setModalAbierto(true)}
-                disabled={loading}
-                className="btn-primary flex items-center gap-2 text-sm py-2 px-3 sm:px-4"
-              >
-                <Plus size={16} />
-                <span className="hidden sm:inline">Nueva Venta</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setModalAbierto(true)}
+              disabled={loading}
+              className="btn-primary flex items-center gap-2 text-sm py-2 px-3 sm:px-4"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Nueva Venta</span>
+            </button>
           )}
 
           <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600

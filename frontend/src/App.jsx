@@ -488,18 +488,6 @@ function AdminApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Botón: Saldo a Favor */}
-            <button
-              onClick={() => {
-                setModoSaldoFavorInicial(true)
-                setModalAbierto(true)
-              }}
-              className="btn-secondary flex items-center gap-2 text-sm bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-              aria-label="Registrar saldo a favor para un cliente"
-            >
-              <Sparkles size={16} />
-              Saldo a Favor
-            </button>
             {/* Botón: Nueva Venta */}
             <button
               onClick={() => {

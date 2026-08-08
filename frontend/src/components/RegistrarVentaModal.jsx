@@ -64,8 +64,7 @@ const aplicarMontoLinea = (linea, monto, rawValue, clearInput = false) => {
       precio: montoRedondeado,
       precio_servicio: totalServicio,
       precio_catalogo: totalServicio,
-      // Cashea + saldo pendiente: solo el registro no pagado va a tratamientos pendientes
-      realizado: linea.cashea ? true : false,
+      realizado: false,
     }
   }
 
@@ -95,8 +94,7 @@ const expandirLineasParaEnvio = (lineas) => {
           servicio_id: l.servicio_id,
           precio: pagado,
           cashea: true,
-          // Con saldo pendiente de cobro, solo ese registro va a tratamientos pendientes
-          realizado: hayPendienteCobro ? true : !saldoAFavor,
+          realizado: false,
           pagado: true,
         })
       }
@@ -115,7 +113,7 @@ const expandirLineasParaEnvio = (lineas) => {
           servicio_id: l.servicio_id,
           precio: pagado,
           cashea: false,
-          realizado: true,
+          realizado: false,
           pagado: true,
         })
       }
@@ -1099,8 +1097,8 @@ const RegistrarVentaModal = ({
                 </div>
               )}
 
-              {/* ── Selector de Modo: Nueva Venta vs Saldo a Favor ── */}
-              {!esPagoPendiente && (
+              {/* ── Selector de Modo: Nueva Venta vs Abonar Cashea ── */}
+              {!esPagoPendiente && form.cliente_id && puedeAbonar && (
                 <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl">
                   <button
                     type="button"
@@ -1109,12 +1107,12 @@ const RegistrarVentaModal = ({
                       setModoSaldoFavor(false)
                       setModoAbono(false)
                     }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!modoSaldoFavor && !modoAbono
-                        ? 'bg-white text-slate-800 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!modoAbono
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
                       }`}
                   >
-                    <Stethoscope size={14} className={!modoSaldoFavor && !modoAbono ? 'text-pink-600' : ''} />
+                    <Stethoscope size={14} className={!modoAbono ? 'text-pink-600' : ''} />
                     <span>Nueva Venta</span>
                   </button>
 
@@ -1122,35 +1120,17 @@ const RegistrarVentaModal = ({
                     type="button"
                     onClick={() => {
                       setError('')
-                      setModoSaldoFavor(true)
-                      setModoAbono(false)
+                      setModoSaldoFavor(false)
+                      setModoAbono(true)
                     }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${modoSaldoFavor
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${modoAbono
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
                       }`}
                   >
-                    <Sparkles size={14} />
-                    <span>Saldo a Favor</span>
+                    <Banknote size={14} />
+                    <span>Abonar Cashea</span>
                   </button>
-
-                  {form.cliente_id && puedeAbonar && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setError('')
-                        setModoSaldoFavor(false)
-                        setModoAbono(true)
-                      }}
-                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${modoAbono
-                          ? 'bg-amber-600 text-white shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                      <Banknote size={14} />
-                      <span>Abonar Cashea</span>
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -1336,8 +1316,8 @@ const RegistrarVentaModal = ({
                             setAplicarSaldoFavor((prev) => !prev)
                           }}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${aplicarSaldoFavor
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
                             }`}
                         >
                           {aplicarSaldoFavor ? 'Quitar descuento' : 'Aplicar saldo a favor'}
