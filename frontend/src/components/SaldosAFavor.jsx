@@ -5,7 +5,7 @@
 // =============================================================================
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
 import {
-  ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Sparkles, Plus,
+  ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Sparkles,
 } from 'lucide-react'
 import { getSaldosAFavor } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
@@ -13,7 +13,7 @@ import { formatearDMAa } from '../utils/fechas'
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
 
-const SaldosAFavor = ({ onVolver, onToast, onRegistrarSaldo, reloadKey = 0 }) => {
+const SaldosAFavor = ({ onVolver, onToast, reloadKey = 0 }) => {
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -84,18 +84,6 @@ const SaldosAFavor = ({ onVolver, onToast, onRegistrarSaldo, reloadKey = 0 }) =>
             </p>
           </div>
         </div>
-
-        {onRegistrarSaldo && (
-          <button
-            type="button"
-            onClick={onRegistrarSaldo}
-            className="btn-secondary flex items-center gap-2 text-sm bg-emerald-50 text-emerald-700
-                       border-emerald-200 hover:bg-emerald-100 self-start sm:self-auto"
-          >
-            <Plus size={15} />
-            Registrar saldo
-          </button>
-        )}
       </div>
 
       <div className="relative">

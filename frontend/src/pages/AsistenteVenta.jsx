@@ -512,10 +512,6 @@ const AsistenteVenta = () => {
           <SaldosAFavor
             onVolver={handleVolverInicio}
             onToast={handleToastPendientes}
-            onRegistrarSaldo={() => {
-              setModoSaldoFavorInicial(true)
-              setModalAbierto(true)
-            }}
             reloadKey={saldosFavorReloadKey}
           />
         )}

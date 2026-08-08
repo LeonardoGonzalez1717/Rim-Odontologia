@@ -578,10 +578,6 @@ function AdminApp() {
           {paginaActual === 'saldos-favor' && (
             <SaldosAFavor
               onToast={handleToastPendientes}
-              onRegistrarSaldo={() => {
-                setModoSaldoFavorInicial(true)
-                setModalAbierto(true)
-              }}
               reloadKey={saldosFavorReloadKey}
             />
           )}
