@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   X, Save, User, Stethoscope, Calendar, Loader2,
   CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle, Banknote,
-  Sparkles, DollarSign, FileText,
+  Sparkles, DollarSign, FileText, BadgeCheck,
 } from 'lucide-react'
 import {
   registrarVenta,
@@ -829,50 +829,52 @@ const RegistrarVentaModal = ({
 
     if (modoSaldoFavor) {
       if (!form.cliente_id) {
-        setError('Por favor, selecciona un cliente.')
-        return
+        setError('Por favor, selecciona un cliente.');
+        return;
       }
-      const montoNum = parseFloat(montoSaldoFavor)
+      if (!servicioSeleccionado) {
+        setError('Selecciona el tratamiento que deseas pagar con el saldo a favor.');
+        return;
+      }
+      const montoNum = parseFloat(montoSaldoFavor);
       if (!montoSaldoFavor || !Number.isFinite(montoNum) || montoNum <= 0) {
-        setError('Indica un monto válido mayor a $0.')
-        return
+        setError('Indica un monto válido mayor a $0.');
+        return;
       }
 
-      setLoading(true)
-      setError('')
+      setLoading(true);
+      setError('');
 
       try {
-        if (!form.fecha_venta) {
-          setError('Indica la fecha y hora del registro.')
-          setLoading(false)
-          return
-        }
-        const fechaFormateada = formatearFechaEnvio(form.fecha_venta)
+        const fechaActual = getActualServerDatetime() || form.fecha_venta;
+        const fechaFormateada = fechaActual ? fechaActual.replace('T', ' ') + ':00' : '';
 
         await registrarSaldoFavor({
           cliente_id: parseInt(form.cliente_id, 10),
           monto: montoNum,
           fecha: fechaFormateada,
           concepto: conceptoSaldoFavor.trim() || 'Saldo a favor registrado',
-        })
+          // opcional: incluir el servicio que se paga con el saldo
+          servicio_id: servicioSeleccionado,
+        });
 
-        if (onRecargarClientes) await onRecargarClientes()
-        setExito(true)
+        if (onRecargarClientes) await onRecargarClientes();
+        setExito(true);
 
         setTimeout(() => {
-          setExito(false)
-          setMontoSaldoFavor('')
-          setConceptoSaldoFavor('')
-          setModoSaldoFavor(false)
-          onSaldoFavorRegistrado?.()
-          onClose()
-        }, 1200)
+          setExito(false);
+          setMontoSaldoFavor('');
+          setConceptoSaldoFavor('');
+          setServicioSeleccionado(null);
+          setModoSaldoFavor(false);
+          onClose();
+        }, 1200);
       } catch (err) {
-        setError(err.message || 'No se pudo registrar el saldo a favor.')
+        setError(err.message || 'No se pudo registrar el saldo a favor.');
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-      return
+      return;
     }
 
     const errorValidacion = validar()
@@ -1038,8 +1040,6 @@ const RegistrarVentaModal = ({
 
   const mostrarFormularioVenta = !modoSaldoFavor && (esPagoPendiente || !puedeAbonar || !modoAbono)
 
-  const serviciosDisponibles = servicios
-
   return (
     <>
       {modalClienteAbierto && (
@@ -1109,11 +1109,10 @@ const RegistrarVentaModal = ({
                       setModoSaldoFavor(false)
                       setModoAbono(false)
                     }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      !modoSaldoFavor && !modoAbono
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!modoSaldoFavor && !modoAbono
                         ? 'bg-white text-slate-800 shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                      }`}
                   >
                     <Stethoscope size={14} className={!modoSaldoFavor && !modoAbono ? 'text-pink-600' : ''} />
                     <span>Nueva Venta</span>
@@ -1126,11 +1125,10 @@ const RegistrarVentaModal = ({
                       setModoSaldoFavor(true)
                       setModoAbono(false)
                     }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      modoSaldoFavor
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${modoSaldoFavor
                         ? 'bg-emerald-600 text-white shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                      }`}
                   >
                     <Sparkles size={14} />
                     <span>Saldo a Favor</span>
@@ -1144,11 +1142,10 @@ const RegistrarVentaModal = ({
                         setModoSaldoFavor(false)
                         setModoAbono(true)
                       }}
-                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                        modoAbono
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${modoAbono
                           ? 'bg-amber-600 text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-700'
-                      }`}
+                        }`}
                     >
                       <Banknote size={14} />
                       <span>Abonar Cashea</span>
@@ -1225,12 +1222,12 @@ const RegistrarVentaModal = ({
                 )}
               </div>
 
-              {/* ── Campos de Saldo a Favor (Modo Saldo a Favor activo, sin tratamientos) ── */}
+              {/* ── Campos de Saldo a Favor (Modo Saldo a Favor activo) ── */}
               {modoSaldoFavor && (
                 <div className="space-y-4 bg-emerald-50/70 border border-emerald-200/80 p-4.5 rounded-2xl animate-fade-in">
                   <div className="flex items-center gap-2 text-emerald-900 text-sm font-bold">
                     <Sparkles size={16} className="text-emerald-600 flex-shrink-0" />
-                    <span>Registrar Saldo a Favor (Sin tratamientos)</span>
+                    <span>Registrar Saldo a Favor</span>
                   </div>
 
                   <div>
@@ -1246,14 +1243,31 @@ const RegistrarVentaModal = ({
                         inputMode="decimal"
                         value={montoSaldoFavor}
                         onChange={(e) => {
-                          setError('')
-                          setMontoSaldoFavor(e.target.value)
+                          setError('');
+                          setMontoSaldoFavor(e.target.value);
                         }}
                         placeholder="0.00"
                         className="form-input pl-7 py-2 text-base font-bold text-slate-800 bg-white"
                         required
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="servicio_saldo_favor" className="form-label text-xs font-semibold text-slate-700">
+                      <BadgeCheck size={13} className="inline mr-1 text-slate-500" />
+                      Tratamiento a pagar
+                    </label>
+                    <ServicioSelect
+                      id="servicio_saldo_favor"
+                      servicios={servicios}
+                      value={servicioSeleccionado}
+                      onChange={(val) => {
+                        setError('');
+                        setServicioSeleccionado(val);
+                      }}
+                      placeholder="Selecciona un tratamiento…"
+                    />
                   </div>
 
                   <div>
@@ -1321,11 +1335,10 @@ const RegistrarVentaModal = ({
                             setError('')
                             setAplicarSaldoFavor((prev) => !prev)
                           }}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
-                            aplicarSaldoFavor
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${aplicarSaldoFavor
                               ? 'bg-emerald-600 text-white shadow-sm'
                               : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
-                          }`}
+                            }`}
                         >
                           {aplicarSaldoFavor ? 'Quitar descuento' : 'Aplicar saldo a favor'}
                         </button>
@@ -1484,7 +1497,7 @@ const RegistrarVentaModal = ({
                                   ?? Math.max(
                                     0,
                                     (ventaAbonoSeleccionada.deuda_restante ?? 0)
-                                      - (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0),
+                                    - (ventaAbonoSeleccionada.saldo_pendiente_pago ?? 0),
                                   )
                                 ).toFixed(2)}
                               </span>
@@ -1607,7 +1620,7 @@ const RegistrarVentaModal = ({
                         <div className="flex-1 min-w-0">
                           <ServicioSelect
                             id="servicio_add"
-                            servicios={serviciosDisponibles}
+                            servicios={servicios}
                             value={servicioSeleccionado}
                             onChange={(val) => {
                               setError('')
