@@ -230,7 +230,7 @@ const VentasRecientes = ({
                               Cashea
                             </span>
                           )}
-                          {((venta.deuda_restante ?? 0) > 0.001 || venta.tiene_saldo_favor || venta.tiene_saldo_a_favor || (venta.servicios && venta.servicios.some((s) => s.realizado === false))) && (
+                          {venta.saldo_a_favor === true && (
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                               Saldo a favor
                             </span>

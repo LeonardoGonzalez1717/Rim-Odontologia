@@ -1,7 +1,9 @@
 <?php
 // =============================================================================
-// saldo_favor.php — Registrar y consultar saldo a favor de clientes
-// Métodos: POST, GET
+// saldo_favor.php â Registrar y consultar saldo a favor de clientes
+// MÃ©todos: POST, GET
+// El saldo a favor se representa con tratamientos pagados y no realizados
+// (venta_detalles: pagado=1, realizado=0). No usa tabla saldos_favor.
 // =============================================================================
 
 header('Access-Control-Allow-Origin: *');
@@ -19,33 +21,34 @@ require_once 'venta_helpers.php';
 
 try {
     $pdo = obtenerConexion();
-
-    // Crear tabla saldos_favor si no existe
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS saldos_favor (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            cliente_id INT NOT NULL,
-            monto DECIMAL(10,2) NOT NULL,
-            fecha DATETIME NOT NULL,
-            concepto VARCHAR(255) DEFAULT 'Saldo a favor registrado',
-            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_cliente (cliente_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
-    );
-
     $metodo = obtenerMetodoHttp();
 
     if ($metodo === 'POST') {
-        $body = json_decode(CACHED_BODY ?? file_get_contents('php://input'), true);
+        $body = json_decode(defined('CACHED_BODY') ? CACHED_BODY : file_get_contents('php://input'), true);
 
-        $clienteId = (int) ($body['cliente_id'] ?? 0);
-        $monto     = (float) ($body['monto'] ?? 0);
-        $fecha     = trim($body['fecha'] ?? '');
-        $concepto  = trim($body['concepto'] ?? 'Saldo a favor registrado');
+        $clienteId  = (int) ($body['cliente_id'] ?? 0);
+        $doctorId   = (int) ($body['doctor_id'] ?? 0);
+        $servicioId = (int) ($body['servicio_id'] ?? 0);
+        $monto      = isset($body['monto']) ? round((float) $body['monto'], 2) : 0.0;
+        $fecha      = trim((string) ($body['fecha'] ?? ''));
+        $concepto   = trim((string) ($body['concepto'] ?? 'Saldo a favor registrado'));
+        $usuarioId  = !empty($body['usuario_id']) ? (int) $body['usuario_id'] : null;
 
         if ($clienteId <= 0) {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Por favor, selecciona un cliente.']);
+            exit;
+        }
+
+        if ($doctorId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Por favor, selecciona un doctor.']);
+            exit;
+        }
+
+        if ($servicioId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Selecciona el tratamiento a pagar con el saldo a favor.']);
             exit;
         }
 
@@ -55,31 +58,87 @@ try {
             exit;
         }
 
-        if (empty($fecha)) {
-            $fecha = date('Y-m-d H:i:s');
+        if ($fecha === '') {
+            $info = obtenerFechaHoraInternet();
+            $fecha = $info['datetime'];
         } else {
-            if (strlen($fecha) === 10) {
-                $fecha .= ' ' . date('H:i:s');
-            } elseif (strlen($fecha) === 16) {
+            $fecha = str_replace('T', ' ', $fecha);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+                $fecha .= ' 00:00:00';
+            } elseif (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $fecha)) {
                 $fecha .= ':00';
+            }
+            $dt = DateTime::createFromFormat('Y-m-d H:i:s', $fecha);
+            if (!$dt || $dt->format('Y-m-d H:i:s') !== $fecha) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'La fecha no es vÃ¡lida.']);
+                exit;
             }
         }
 
-        $stmt = $pdo->prepare(
-            "INSERT INTO saldos_favor (cliente_id, monto, fecha, concepto)
-             VALUES (:cliente_id, :monto, :fecha, :concepto)"
+        if (mb_strlen($concepto) > 255) {
+            $concepto = mb_substr($concepto, 0, 255);
+        }
+
+        $stmtCli = $pdo->prepare("SELECT id FROM clientes WHERE id = :id AND estado = 'activo' LIMIT 1");
+        $stmtCli->execute([':id' => $clienteId]);
+        if (!$stmtCli->fetch()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Cliente no encontrado.']);
+            exit;
+        }
+
+        $stmtDoc = $pdo->prepare("SELECT id FROM doctores WHERE id = :id AND estado = 'activo' LIMIT 1");
+        $stmtDoc->execute([':id' => $doctorId]);
+        if (!$stmtDoc->fetch()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Doctor no encontrado.']);
+            exit;
+        }
+
+        $stmtSvc = $pdo->prepare("SELECT id FROM servicios_tratamientos WHERE id = :id AND estado = 'activo' LIMIT 1");
+        $stmtSvc->execute([':id' => $servicioId]);
+        if (!$stmtSvc->fetch()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Tratamiento no encontrado.']);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+
+        $stmtVenta = $pdo->prepare(
+            "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, saldo_a_favor, estado)
+             VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, 0, :monto_caja, :descripcion, 1, 'completada')"
         );
-        $stmt->execute([
-            ':cliente_id' => $clienteId,
-            ':monto'      => $monto,
-            ':fecha'      => $fecha,
-            ':concepto'   => $concepto,
+        $stmtVenta->execute([
+            ':doctor_id'    => $doctorId,
+            ':cliente_id'   => $clienteId,
+            ':usuario_id'   => $usuarioId,
+            ':fecha_venta'  => $fecha,
+            ':total'        => $monto,
+            ':monto_caja'   => $monto,
+            ':descripcion'  => $concepto !== '' ? $concepto : null,
         ]);
 
+        $ventaId = (int) $pdo->lastInsertId();
+
+        $stmtDetalle = $pdo->prepare(
+            "INSERT INTO venta_detalles (venta_id, servicio_id, precio, realizado, cashea, pagado)
+             VALUES (:venta_id, :servicio_id, :precio, 0, 0, 1)"
+        );
+        $stmtDetalle->execute([
+            ':venta_id'    => $ventaId,
+            ':servicio_id' => $servicioId,
+            ':precio'      => $monto,
+        ]);
+
+        $pdo->commit();
+
         echo json_encode([
-            'success' => true,
-            'message' => 'Saldo a favor registrado correctamente.',
-            'id'      => (int) $pdo->lastInsertId(),
+            'success'  => true,
+            'message'  => 'Saldo a favor registrado correctamente.',
+            'id'       => $ventaId,
+            'venta_id' => $ventaId,
         ]);
         exit;
     }
@@ -87,18 +146,29 @@ try {
     if ($metodo === 'GET') {
         $clienteId = (int) ($_GET['cliente_id'] ?? 0);
 
-        // Detalle de movimientos de un cliente
+        // Detalle de tratamientos prepagados de un cliente
         if ($clienteId > 0) {
             $stmt = $pdo->prepare(
-                "SELECT id, cliente_id, monto, DATE_FORMAT(fecha, '%Y-%m-%d %H:%i') AS fecha, concepto
-                 FROM saldos_favor
-                 WHERE cliente_id = :cliente_id
-                 ORDER BY fecha DESC"
+                "SELECT
+                    vd.id,
+                    v.cliente_id,
+                    vd.precio AS monto,
+                    DATE_FORMAT(v.fecha_venta, '%Y-%m-%d %H:%i') AS fecha,
+                    CONCAT('Tratamiento prepagado: ', s.nombre_servicio) AS concepto
+                 FROM venta_detalles vd
+                 INNER JOIN ventas v ON v.id = vd.venta_id
+                 INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
+                 WHERE v.cliente_id = :cliente_id
+                   AND v.estado = 'completada'
+                   AND COALESCE(vd.realizado, 1) = 0
+                   AND COALESCE(vd.pagado, 1) = 1
+                   AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                 ORDER BY v.fecha_venta DESC, vd.id DESC"
             );
             $stmt->execute([':cliente_id' => $clienteId]);
             $registros = $stmt->fetchAll();
 
-            $totalSaldo = array_reduce($registros, fn($s, $r) => $s + (float)$r['monto'], 0.0);
+            $totalSaldo = array_reduce($registros, fn($s, $r) => $s + (float) $r['monto'], 0.0);
 
             echo json_encode([
                 'success'     => true,
@@ -109,18 +179,13 @@ try {
             exit;
         }
 
-        // Listado: clientes con saldo a favor disponible (> 0)
+        // Listado: clientes con saldo a favor (tratamientos prepagados)
         $stmt = $pdo->query(
             "SELECT
                 c.id AS cliente_id,
                 c.cedula AS cliente_cedula,
                 c.nombre AS cliente_nombre,
                 c.telefono AS cliente_telefono,
-                COALESCE((
-                  SELECT SUM(sf.monto)
-                  FROM saldos_favor sf
-                  WHERE sf.cliente_id = c.id
-                ), 0) AS saldo_monetario,
                 COALESCE((
                   SELECT SUM(vd.precio)
                   FROM venta_detalles vd
@@ -133,39 +198,45 @@ try {
                 ), 0) AS saldo_prepagado
              FROM clientes c
              WHERE c.estado = 'activo'
-             HAVING (saldo_monetario + saldo_prepagado) > 0.001
-             ORDER BY (saldo_monetario + saldo_prepagado) DESC, c.nombre ASC"
+             HAVING saldo_prepagado > 0.001
+             ORDER BY saldo_prepagado DESC, c.nombre ASC"
         );
 
         $clientes = [];
         $totalSaldo = 0.0;
         foreach ($stmt->fetchAll() as $row) {
-            $monetario = round((float) $row['saldo_monetario'], 2);
             $prepagado = round((float) $row['saldo_prepagado'], 2);
-            $saldo = round($monetario + $prepagado, 2);
-            $totalSaldo += $saldo;
+            $totalSaldo += $prepagado;
             $clientes[] = [
                 'cliente_id'       => (int) $row['cliente_id'],
                 'cliente_cedula'   => $row['cliente_cedula'],
                 'cliente_nombre'   => $row['cliente_nombre'],
                 'cliente_telefono' => $row['cliente_telefono'],
-                'saldo_a_favor'    => $saldo,
-                'saldo_monetario'  => max(0, $monetario),
-                'saldo_prepagado'  => max(0, $prepagado),
+                'saldo_a_favor'    => $prepagado,
+                'saldo_monetario'  => 0.0,
+                'saldo_prepagado'  => $prepagado,
             ];
         }
 
-        // Movimientos recientes por cliente (para el detalle expandible)
         if (count($clientes) > 0) {
             $ids = array_column($clientes, 'cliente_id');
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $stmtMov = $pdo->prepare(
-                "SELECT id, cliente_id, monto,
-                        DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha,
-                        concepto
-                 FROM saldos_favor
-                 WHERE cliente_id IN ($placeholders)
-                 ORDER BY fecha DESC, id DESC"
+                "SELECT
+                    vd.id,
+                    v.cliente_id,
+                    vd.precio AS monto,
+                    DATE_FORMAT(v.fecha_venta, '%Y-%m-%d') AS fecha,
+                    CONCAT('Tratamiento prepagado: ', s.nombre_servicio) AS concepto
+                 FROM venta_detalles vd
+                 INNER JOIN ventas v ON v.id = vd.venta_id
+                 INNER JOIN servicios_tratamientos s ON s.id = vd.servicio_id
+                 WHERE v.cliente_id IN ($placeholders)
+                   AND v.estado = 'completada'
+                   AND COALESCE(vd.realizado, 1) = 0
+                   AND COALESCE(vd.pagado, 1) = 1
+                   AND " . sqlExcluirCasheaDuplicadoEnPendientes('vd') . "
+                 ORDER BY v.fecha_venta DESC, vd.id DESC"
             );
             $stmtMov->execute($ids);
             $movimientosPorCliente = [];
@@ -200,9 +271,12 @@ try {
     }
 
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Método no permitido.']);
+    echo json_encode(['success' => false, 'message' => 'MÃ©todo no permitido.']);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error en el servidor: ' . $e->getMessage()]);
 }

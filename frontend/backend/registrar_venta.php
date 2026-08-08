@@ -281,11 +281,31 @@ try {
 
     $usuario_id = !empty($datos['usuario_id']) ? (int) $datos['usuario_id'] : null;
 
+    // Flag de cabecera saldo_a_favor:
+    //  - Contado cobrado y no realizado (Hoy desmarcado o monto parcial cobrado)
+    //  - Monto inferior al total (queda porción pendiente de cobro), también con Cashea
+    // No marcar solo por Cashea a precio completo.
+    $esSaldoAFavor = false;
+    foreach ($lineasNormalizadas as $linea) {
+        $esCashea    = (int) ($linea['cashea'] ?? 0) === 1;
+        $esRealizado = (int) ($linea['realizado'] ?? 1) === 1;
+        $esPagado    = (int) ($linea['pagado'] ?? 1) === 1;
+
+        if (!$esCashea && !$esRealizado && $esPagado) {
+            $esSaldoAFavor = true;
+            break;
+        }
+        if (!$esPagado && !$esRealizado) {
+            $esSaldoAFavor = true;
+            break;
+        }
+    }
+
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, estado)
-         VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, 'completada')"
+        "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, saldo_a_favor, estado)
+         VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, :saldo_a_favor, 'completada')"
     );
     $stmtVenta->execute([
         ':doctor_id'           => $doctor_id,
@@ -296,6 +316,7 @@ try {
         ':cashea'              => $cashea ? 1 : 0,
         ':monto_caja'          => $montoCaja,
         ':descripcion_cashea'  => $descripcionCashea,
+        ':saldo_a_favor'       => $esSaldoAFavor ? 1 : 0,
     ]);
 
     $nuevoId = (int) $pdo->lastInsertId();

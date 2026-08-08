@@ -122,7 +122,7 @@ try {
     }
 
     $stmtCheck = $pdo->prepare(
-        "SELECT vd.id, vd.realizado, v.estado
+        "SELECT vd.id, vd.realizado, vd.venta_id, v.estado
          FROM venta_detalles vd
          INNER JOIN ventas v ON v.id = vd.venta_id
          WHERE vd.id = :id
@@ -151,10 +151,38 @@ try {
         exit;
     }
 
+    $pdo->beginTransaction();
+
     $stmtUpdate = $pdo->prepare(
         "UPDATE venta_detalles SET realizado = 1 WHERE id = :id"
     );
     $stmtUpdate->execute([':id' => $detalleId]);
+
+    // Recalcular flag de cabecera saldo_a_favor:
+    // cobrado no realizado (sin Cashea) O porción pendiente por monto inferior.
+    $ventaId = (int) $detalle['venta_id'];
+    $stmtFlag = $pdo->prepare(
+        "UPDATE ventas v
+         SET v.saldo_a_favor = (
+           EXISTS (
+             SELECT 1 FROM venta_detalles vd
+             WHERE vd.venta_id = v.id
+               AND COALESCE(vd.cashea, 0) = 0
+               AND COALESCE(vd.realizado, 1) = 0
+               AND COALESCE(vd.pagado, 1) = 1
+           )
+           OR EXISTS (
+             SELECT 1 FROM venta_detalles vd
+             WHERE vd.venta_id = v.id
+               AND COALESCE(vd.realizado, 1) = 0
+               AND COALESCE(vd.pagado, 1) = 0
+           )
+         )
+         WHERE v.id = :venta_id"
+    );
+    $stmtFlag->execute([':venta_id' => $ventaId]);
+
+    $pdo->commit();
 
     echo json_encode([
         'success' => true,
@@ -163,9 +191,15 @@ try {
     ]);
 
 } catch (RuntimeException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 } catch (PDOException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error de base de datos: ' . $e->getMessage()]);
 }

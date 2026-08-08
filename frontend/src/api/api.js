@@ -512,12 +512,16 @@ export async function registrarAbonoCashea(datos) {
   })
 }
 
-// POST /api/saldo_favor.php — Registrar saldo a favor para un cliente
-// @param {{ cliente_id: number, monto: number, fecha?: string, concepto?: string }} datos
+// POST /api/saldo_favor.php — Registrar saldo a favor (tratamiento prepagado)
+// @param {{ cliente_id: number, doctor_id: number, servicio_id: number, monto: number, fecha?: string, concepto?: string }} datos
 export async function registrarSaldoFavor(datos) {
+  const payload = {
+    usuario_id: datos?.usuario_id || getUsuarioIdSesion(),
+    ...datos,
+  }
   return apiFetch(`${API_BASE}/saldo_favor.php`, {
     method: 'POST',
-    body: JSON.stringify(datos),
+    body: JSON.stringify(payload),
   })
 }
 

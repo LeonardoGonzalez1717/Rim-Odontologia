@@ -87,14 +87,15 @@ const expandirLineasParaEnvio = (lineas) => {
     const pendiente = montoPendienteLinea(l)
 
     if (l.cashea) {
-      const saldoAFavor = l.realizado === false
+      // Cashea a precio completo: solo financiamiento (no es saldo a favor).
+      // Cashea + monto inferior: la diferencia queda pendiente y la venta sí es saldo a favor.
       const hayPendienteCobro = pendiente > 0.001
       if (pagado > 0.001) {
         servicios.push({
           servicio_id: l.servicio_id,
           precio: pagado,
           cashea: true,
-          realizado: false,
+          realizado: hayPendienteCobro ? false : (l.realizado !== false),
           pagado: true,
         })
       }
@@ -108,6 +109,8 @@ const expandirLineasParaEnvio = (lineas) => {
         })
       }
     } else if (pendiente > 0.001) {
+      // Monto menor al total: lo cobrado queda como saldo a favor (pagado, no realizado);
+      // el resto queda pendiente de cobro.
       if (pagado > 0.001) {
         servicios.push({
           servicio_id: l.servicio_id,
@@ -125,7 +128,7 @@ const expandirLineasParaEnvio = (lineas) => {
         pagado: false,
       })
     } else {
-      // Pago completo: si marca "Saldo a favor", queda pendiente de realizar (pagado=1, realizado=0)
+      // Pago completo: si desmarca "Hoy", queda pendiente de realizar (saldo a favor)
       const saldoAFavor = l.realizado === false
       servicios.push({
         servicio_id: l.servicio_id,
@@ -830,6 +833,10 @@ const RegistrarVentaModal = ({
         setError('Por favor, selecciona un cliente.');
         return;
       }
+      if (!form.doctor_id) {
+        setError('Por favor, selecciona un doctor.');
+        return;
+      }
       if (!servicioSeleccionado) {
         setError('Selecciona el tratamiento que deseas pagar con el saldo a favor.');
         return;
@@ -839,21 +846,24 @@ const RegistrarVentaModal = ({
         setError('Indica un monto válido mayor a $0.');
         return;
       }
+      if (!form.fecha_venta) {
+        setError('Indica la fecha y hora del registro.');
+        return;
+      }
 
       setLoading(true);
       setError('');
 
       try {
-        const fechaActual = getActualServerDatetime() || form.fecha_venta;
-        const fechaFormateada = fechaActual ? fechaActual.replace('T', ' ') + ':00' : '';
+        const fechaFormateada = formatearFechaEnvio(form.fecha_venta);
 
         await registrarSaldoFavor({
           cliente_id: parseInt(form.cliente_id, 10),
+          doctor_id: parseInt(form.doctor_id, 10),
+          servicio_id: parseInt(servicioSeleccionado, 10),
           monto: montoNum,
           fecha: fechaFormateada,
           concepto: conceptoSaldoFavor.trim() || 'Saldo a favor registrado',
-          // opcional: incluir el servicio que se paga con el saldo
-          servicio_id: servicioSeleccionado,
         });
 
         if (onRecargarClientes) await onRecargarClientes();
@@ -1135,7 +1145,7 @@ const RegistrarVentaModal = ({
               )}
 
               {/* ── Cliente + Doctor ── */}
-              <div className={`grid grid-cols-1 gap-4 ${mostrarFormularioVenta ? 'sm:grid-cols-2' : ''
+              <div className={`grid grid-cols-1 gap-4 ${(mostrarFormularioVenta || modoSaldoFavor) ? 'sm:grid-cols-2' : ''
                 }`}>
                 <div className="min-w-0">
                   <label htmlFor="cliente_id" className="form-label">
@@ -1171,7 +1181,7 @@ const RegistrarVentaModal = ({
                   )}
                 </div>
 
-                {mostrarFormularioVenta && (
+                {(mostrarFormularioVenta || modoSaldoFavor) && (
                   <div className="min-w-0">
                     <label htmlFor="doctor_id" className="form-label">
                       <User size={14} className="inline mr-1.5 text-pink-500" />
@@ -1644,9 +1654,11 @@ const RegistrarVentaModal = ({
                                  border rounded-xl px-3 py-2.5 transition-colors
                                  ${linea.cashea
                                   ? 'bg-amber-50/70 border-amber-200'
-                                  : montoPendienteLinea(linea) > 0.001 || linea.realizado === false
+                                  : montoPendienteLinea(linea) > 0.001
                                     ? 'bg-emerald-50/70 border-emerald-200'
-                                    : 'bg-slate-50 border-slate-100'}`}
+                                    : linea.realizado === false
+                                      ? 'bg-emerald-50/70 border-emerald-200'
+                                      : 'bg-slate-50 border-slate-100'}`}
                             >
                               <div className="flex flex-col min-w-0 flex-1 gap-0.5">
                                 <span className="text-sm text-slate-700 leading-tight truncate">
@@ -1669,9 +1681,9 @@ const RegistrarVentaModal = ({
                                   <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
                                     Pendiente ${montoPendienteLinea(linea).toFixed(2)}
                                   </span>
-                                ) : linea.realizado === false && (
+                                ) : !linea.cashea && linea.realizado === false && (
                                   <span className="text-[10px] font-medium text-emerald-700 whitespace-nowrap">
-                                    Trat. pendiente
+                                    Saldo a favor
                                   </span>
                                 )}
                               </div>
@@ -1960,7 +1972,7 @@ const RegistrarVentaModal = ({
               {modoSaldoFavor ? (
                 <button
                   type="submit"
-                  disabled={loading || exito || !form.cliente_id || !montoSaldoFavor}
+                  disabled={loading || exito || !form.cliente_id || !form.doctor_id || !servicioSeleccionado || !montoSaldoFavor || !form.fecha_venta}
                   className="btn-primary flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
                 >
                   {loading ? (

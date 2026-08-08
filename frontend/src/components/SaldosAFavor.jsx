@@ -172,26 +172,15 @@ const SaldosAFavor = ({ onVolver, onToast, onRegistrarSaldo, reloadKey = 0 }) =>
                   {abierto && (
                     <div className="bg-slate-50/80 border-t border-slate-100 px-5 sm:px-6 py-3.5 space-y-3">
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                        {cliente.saldo_monetario > 0.001 && (
-                          <span className="text-emerald-800">
-                            Crédito:{' '}
-                            <span className="font-semibold">{fmt(cliente.saldo_monetario)}</span>
-                          </span>
-                        )}
-                        {cliente.saldo_prepagado > 0.001 && (
-                          <span className="text-emerald-800">
-                            Trat. prepagados:{' '}
-                            <span className="font-semibold">{fmt(cliente.saldo_prepagado)}</span>
-                          </span>
-                        )}
+                        <span className="text-emerald-800">
+                          Tratamientos prepagados:{' '}
+                          <span className="font-semibold">{fmt(cliente.saldo_prepagado ?? cliente.saldo_a_favor)}</span>
+                        </span>
                       </div>
 
                       {movimientos.length === 0 ? (
                         <p className="text-xs text-slate-400">
-                          Sin movimientos de crédito registrados
-                          {cliente.saldo_prepagado > 0.001
-                            ? ' (el saldo proviene de tratamientos prepagados).'
-                            : '.'}
+                          Sin tratamientos prepagados pendientes.
                         </p>
                       ) : (
                         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-100 bg-white">

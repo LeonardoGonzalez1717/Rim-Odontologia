@@ -67,6 +67,7 @@ try {
                     u.username                              AS usuario_username,
                     v.total,
                     COALESCE(v.cashea, 0) AS cashea,
+                    COALESCE(v.saldo_a_favor, 0) AS saldo_a_favor,
                     COALESCE(v.monto_caja, v.total) AS monto_caja,
                     v.descripcion_cashea,
                     v.estado
@@ -136,6 +137,7 @@ try {
             'usuario_nombre'     => $row['usuario_nombre'],
             'total'      => (float) $row['total'],
             'cashea'             => (bool)  $row['cashea'],
+            'saldo_a_favor'      => (bool)  $row['saldo_a_favor'],
             'monto_caja'         => (float) $row['monto_caja'],
             'descripcion_cashea' => $row['descripcion_cashea'],
             'estado'             => $row['estado'],
