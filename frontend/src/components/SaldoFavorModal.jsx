@@ -2,7 +2,7 @@
 // components/SaldoFavorModal.jsx
 // Modal para registrar un saldo a favor a un cliente (cliente, monto, fecha, concepto)
 // =============================================================================
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X, Sparkles, User, Calendar, DollarSign, FileText, Loader2, CheckCircle2 } from 'lucide-react'
 import ClienteSelect from './ClienteSelect'
 import { registrarSaldoFavor } from '../api/api'
@@ -22,6 +22,7 @@ const SaldoFavorModal = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
+  const fechaManualRef = useRef(false)
 
   useEffect(() => {
     if (cargando) return
@@ -54,7 +55,7 @@ const SaldoFavorModal = ({
 
     setLoading(true)
     try {
-      const fechaEnvio = fecha ? fecha.replace('T', ' ') + ':00' : ''
+      const fechaEnvio = fechaManualRef.current && fecha ? fecha.replace('T', ' ') + ':00' : ''
       await registrarSaldoFavor({
         cliente_id: parseInt(clienteId, 10),
         monto: montoNum,
@@ -170,7 +171,10 @@ const SaldoFavorModal = ({
               id="fecha_sf"
               type="datetime-local"
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              onChange={(e) => {
+                setFecha(e.target.value)
+                fechaManualRef.current = true
+              }}
               className="form-input text-sm"
               required
             />

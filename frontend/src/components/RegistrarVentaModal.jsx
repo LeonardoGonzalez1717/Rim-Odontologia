@@ -788,11 +788,6 @@ const RegistrarVentaModal = ({
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
     if (lineas.length === 0) return 'Agrega al menos un tratamiento a la venta.'
-    if (!form.fecha_venta) {
-      return cargando
-        ? 'Sincronizando la hora del servidor…'
-        : 'Indica la fecha y hora de la venta.'
-    }
     if (total <= 0) return 'El monto debe ser mayor a $0.'
     if (tieneCashea) {
       const monto = parseFloat(montoCashea)
@@ -846,16 +841,11 @@ const RegistrarVentaModal = ({
         setError('Indica un monto válido mayor a $0.');
         return;
       }
-      if (!form.fecha_venta) {
-        setError('Indica la fecha y hora del registro.');
-        return;
-      }
-
       setLoading(true);
       setError('');
 
       try {
-        const fechaFormateada = formatearFechaEnvio(form.fecha_venta);
+        const fechaFormateada = (fechaManualRef.current && form.fecha_venta) ? formatearFechaEnvio(form.fecha_venta) : '';
 
         await registrarSaldoFavor({
           cliente_id: parseInt(form.cliente_id, 10),
@@ -895,10 +885,7 @@ const RegistrarVentaModal = ({
     setError('')
 
     try {
-      if (!form.fecha_venta) {
-        throw new Error('Indica la fecha y hora de la venta.')
-      }
-      const fechaFormateada = formatearFechaEnvio(form.fecha_venta)
+      const fechaFormateada = (fechaManualRef.current && form.fecha_venta) ? formatearFechaEnvio(form.fecha_venta) : ''
 
       const serviciosExpandidos = expandirLineasParaEnvio(lineas)
 
@@ -1015,11 +1002,6 @@ const RegistrarVentaModal = ({
       return
     }
 
-    if (!form.fecha_venta) {
-      setErrorAbono('Indica la fecha y hora del pago.')
-      return
-    }
-
     setLoadingAbono(true)
     try {
       const desc = descripcionAbono.trim()
@@ -1027,7 +1009,7 @@ const RegistrarVentaModal = ({
         venta_id: parseInt(ventaAbonoId, 10),
         monto,
         descripcion: desc || undefined,
-        fecha_ingreso: formatearFechaEnvio(form.fecha_venta),
+        fecha_ingreso: (fechaManualRef.current && form.fecha_venta) ? formatearFechaEnvio(form.fecha_venta) : '',
       })
       setExitoAbono(true)
       setMontoAbono('')
@@ -1272,7 +1254,6 @@ const RegistrarVentaModal = ({
                       value={form.fecha_venta}
                       onChange={handleChange}
                       className="form-input text-xs bg-white"
-                      required
                     />
                   </div>
 
@@ -1530,7 +1511,6 @@ const RegistrarVentaModal = ({
                             handleChange(e)
                           }}
                           className="form-input"
-                          required
                         />
                       </div>
 
@@ -1794,7 +1774,6 @@ const RegistrarVentaModal = ({
                       onChange={handleChange}
                       className="form-input"
                       aria-label="Fecha y hora de la venta"
-                      required
                     />
                     <p className="text-xs text-slate-500 mt-1">
                       {cargando && !form.fecha_venta
@@ -1971,8 +1950,7 @@ const RegistrarVentaModal = ({
               </button>
               {modoSaldoFavor ? (
                 <button
-                  type="submit"
-                  disabled={loading || exito || !form.cliente_id || !form.doctor_id || !servicioSeleccionado || !montoSaldoFavor || !form.fecha_venta}
+                  disabled={loading || exito || !form.cliente_id || !form.doctor_id || !servicioSeleccionado || !montoSaldoFavor}
                   className="btn-primary flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
                 >
                   {loading ? (
@@ -1989,8 +1967,7 @@ const RegistrarVentaModal = ({
                 </button>
               ) : mostrarFormularioVenta ? (
                 <button
-                  type="submit"
-                  disabled={loading || exito || lineas.length === 0 || !form.fecha_venta}
+                  disabled={loading || exito || lineas.length === 0}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {loading ? (
