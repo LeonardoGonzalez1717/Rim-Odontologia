@@ -504,6 +504,7 @@ const AsistenteVenta = () => {
             onVolver={handleVolverInicio}
             onToast={handleToastPendientes}
             onRegistrarPago={handleRegistrarPagoPendiente}
+            onTratamientoRealizado={() => setSaldosFavorReloadKey((k) => k + 1)}
             reloadKey={pendientesReloadKey}
           />
         )}

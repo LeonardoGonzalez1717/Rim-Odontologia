@@ -235,12 +235,32 @@ const DetalleVentaModal = ({
               </span>
             </div>
 
+            {/* Descuento aplicado por saldo a favor */}
+            {!esCancelada && (venta.saldo_favor_aplicado ?? 0) > 0.001 && (
+              <div className="bg-emerald-50/80 border border-emerald-200/70 rounded-xl px-3 py-2.5 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-emerald-600" />
+                    Descuento — saldo a favor aplicado
+                  </span>
+                  <span className="text-sm font-bold text-emerald-700">
+                    − {formatCurrency(venta.saldo_favor_aplicado)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-700/80 italic pl-5 mt-0.5">
+                  (Monto del saldo a favor del cliente usado como descuento en esta venta)
+                </p>
+              </div>
+            )}
+
             {/* Monto ingresado en caja */}
             {(venta.cashea || venta.monto_caja != null) && (
               <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
                 <span className="text-sm font-medium text-slate-600 flex items-center gap-1.5">
                   <CreditCard size={15} className="text-emerald-600" />
-                  Monto ingresado en caja
+                  {(venta.saldo_favor_aplicado ?? 0) > 0.001
+                    ? 'Cobrado en caja (con descuento)'
+                    : 'Monto ingresado en caja'}
                 </span>
                 <span className={`text-sm font-bold ${esCancelada ? 'line-through text-slate-400' : 'text-emerald-700'}`}>
                   {formatCurrency(venta.monto_caja ?? venta.total)}

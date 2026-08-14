@@ -69,6 +69,7 @@ try {
                     COALESCE(v.cashea, 0) AS cashea,
                     COALESCE(v.saldo_a_favor, 0) AS saldo_a_favor,
                     COALESCE(v.monto_caja, v.total) AS monto_caja,
+                    v.saldo_favor_aplicado,
                     v.descripcion_cashea,
                     v.estado
                   $fromSql";
@@ -129,18 +130,21 @@ try {
 
     $ventas = array_map(function ($row) {
         return [
-            'id'      => (int)   $row['id'],
-            'fecha'   => $row['fecha'],
-            'hora'    => $row['hora'],
-            'doctor'  => $row['doctor'],
-            'cliente' => $row['cliente'],
-            'usuario_nombre'     => $row['usuario_nombre'],
-            'total'      => (float) $row['total'],
-            'cashea'             => (bool)  $row['cashea'],
-            'saldo_a_favor'      => (bool)  $row['saldo_a_favor'],
-            'monto_caja'         => (float) $row['monto_caja'],
-            'descripcion_cashea' => $row['descripcion_cashea'],
-            'estado'             => $row['estado'],
+            'id'      =>  (int)   $row['id'],
+            'fecha'   =>  $row['fecha'],
+            'hora'    =>  $row['hora'],
+            'doctor'  =>  $row['doctor'],
+            'cliente' =>  $row['cliente'],
+            'usuario_nombre'        =>  $row['usuario_nombre'],
+            'total'                 =>  (float) $row['total'],
+            'cashea'                =>  (bool)  $row['cashea'],
+            'saldo_a_favor'         =>  (bool)  $row['saldo_a_favor'],
+            'monto_caja'            =>  (float) $row['monto_caja'],
+            'saldo_favor_aplicado'  =>  isset($row['saldo_favor_aplicado']) && $row['saldo_favor_aplicado'] !== null
+                                            ? (float) $row['saldo_favor_aplicado']
+                                            : null,
+            'descripcion_cashea'    =>  $row['descripcion_cashea'],
+            'estado'                =>  $row['estado'],
         ];
     }, $stmt->fetchAll());
 

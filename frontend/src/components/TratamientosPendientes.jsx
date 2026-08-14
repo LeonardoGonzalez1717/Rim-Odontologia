@@ -12,7 +12,7 @@ import { formatearDMAa } from '../utils/fechas'
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
 
-const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, reloadKey = 0 }) => {
+const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, onTratamientoRealizado, reloadKey = 0 }) => {
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -29,6 +29,9 @@ const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, reloadKey 
 
   const onRegistrarPagoRef = useRef(onRegistrarPago)
   onRegistrarPagoRef.current = onRegistrarPago
+
+  const onTratamientoRealizadoRef = useRef(onTratamientoRealizado)
+  onTratamientoRealizadoRef.current = onTratamientoRealizado
 
   const tieneDatosRef = useRef(false)
 
@@ -73,6 +76,9 @@ const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, reloadKey 
       await marcarTratamientoRealizado(detalleId)
       onToastRef.current?.('Tratamiento marcado como realizado.')
       await cargar({ silencioso: true })
+      // Notificar al padre para que recargue Saldo a Favor
+      // (el tratamiento realizado ya no debe aparecer como saldo a favor)
+      onTratamientoRealizadoRef.current?.()
     } catch (err) {
       onToastRef.current?.(err.message || 'No se pudo marcar el tratamiento.')
     } finally {
@@ -197,58 +203,75 @@ const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, reloadKey 
 
                   {abierto && (
                     <ul className="bg-slate-50/80 border-t border-slate-100 divide-y divide-slate-100">
-                      {cliente.tratamientos.map((t) => (
-                        <li
-                          key={t.id}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between
-                                     gap-3 px-5 sm:px-6 py-3.5"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800">{t.nombre}</p>
-                            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                              <Clock size={11} />
-                              Venta del {formatearDMAa(t.fecha)} · {fmt(t.precio)}
+                      {cliente.tratamientos.map((t) => {
+                        // Un item pagado=true con un hermano pagado=false en la misma venta
+                        // proviene de un pago parcial, no del toggle "Hoy" desmarcado.
+                        // En ese caso NO se muestra "Ya se realizó".
+                        const tieneHermanoPendiente = t.pagado && cliente.tratamientos.some(
+                          (otro) =>
+                            otro.id !== t.id &&
+                            otro.venta_id === t.venta_id &&
+                            otro.servicio_id === t.servicio_id &&
+                            !otro.pagado,
+                        )
+                        const esSaldoFavor = t.pagado && !tieneHermanoPendiente
+
+                        return (
+                          <li
+                            key={t.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between
+                                       gap-3 px-5 sm:px-6 py-3.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800">{t.nombre}</p>
+                              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                                <Clock size={11} />
+                                Venta del {formatearDMAa(t.fecha)} · {fmt(t.precio)}
+                                {!t.pagado && (
+                                  <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
+                                )}
+                                {tieneHermanoPendiente && (
+                                  <span className="text-emerald-700 font-medium"> · Prepagado</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
                               {!t.pagado && (
-                                <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRegistrarPago(cliente, t)}
+                                className="btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5
+                                           whitespace-nowrap"
+                              >
+                                <Banknote size={13} />
+                                Registrar pago
+                              </button>
                               )}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {!t.pagado && (
-                            <button
-                              type="button"
-                              onClick={() => handleRegistrarPago(cliente, t)}
-                              className="btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5
-                                         whitespace-nowrap"
-                            >
-                              <Banknote size={13} />
-                              Registrar pago
-                            </button>
-                            )}
-                            {t.pagado && (
-                            <button
-                              type="button"
-                              onClick={() => handleMarcarRealizado(t.id)}
-                              disabled={marcandoId === t.id}
-                              className="btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5
-                                         whitespace-nowrap disabled:opacity-50"
-                            >
-                              {marcandoId === t.id ? (
-                                <>
-                                  <Loader2 size={13} className="animate-spin" />
-                                  Guardando…
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 size={13} />
-                                  Ya se realizó
-                                </>
+                              {esSaldoFavor && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarcarRealizado(t.id)}
+                                disabled={marcandoId === t.id}
+                                className="btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5
+                                           whitespace-nowrap disabled:opacity-50"
+                              >
+                                {marcandoId === t.id ? (
+                                  <>
+                                    <Loader2 size={13} className="animate-spin" />
+                                    Guardando…
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 size={13} />
+                                    Ya se realizó
+                                  </>
+                                )}
+                              </button>
                               )}
-                            </button>
-                            )}
-                          </div>
-                        </li>
-                      ))}
+                            </div>
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
                 </li>

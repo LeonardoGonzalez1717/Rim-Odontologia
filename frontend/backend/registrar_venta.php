@@ -304,19 +304,20 @@ try {
     $pdo->beginTransaction();
 
     $stmtVenta = $pdo->prepare(
-        "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, descripcion_cashea, saldo_a_favor, estado)
-         VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, :cashea, :monto_caja, :descripcion_cashea, :saldo_a_favor, 'completada')"
+        "INSERT INTO ventas (doctor_id, cliente_id, usuario_id, fecha_venta, total, cashea, monto_caja, saldo_favor_aplicado, descripcion_cashea, saldo_a_favor, estado)
+         VALUES (:doctor_id, :cliente_id, :usuario_id, :fecha_venta, :total, :cashea, :monto_caja, :saldo_favor_aplicado, :descripcion_cashea, :saldo_a_favor, 'completada')"
     );
     $stmtVenta->execute([
-        ':doctor_id'           => $doctor_id,
-        ':cliente_id'          => $cliente_id,
-        ':usuario_id'          => $usuario_id,
-        ':fecha_venta'         => $fecha_venta,
-        ':total'               => $total,
-        ':cashea'              => $cashea ? 1 : 0,
-        ':monto_caja'          => $montoCaja,
-        ':descripcion_cashea'  => $descripcionCashea,
-        ':saldo_a_favor'       => $esSaldoAFavor ? 1 : 0,
+        ':doctor_id'              => $doctor_id,
+        ':cliente_id'             => $cliente_id,
+        ':usuario_id'             => $usuario_id,
+        ':fecha_venta'            => $fecha_venta,
+        ':total'                  => $total,
+        ':cashea'                 => $cashea ? 1 : 0,
+        ':monto_caja'             => $montoCaja,
+        ':saldo_favor_aplicado'   => $saldoFavorAplicado > 0.001 ? $saldoFavorAplicado : null,
+        ':descripcion_cashea'     => $descripcionCashea,
+        ':saldo_a_favor'          => $esSaldoAFavor ? 1 : 0,
     ]);
 
     $nuevoId = (int) $pdo->lastInsertId();
@@ -354,9 +355,10 @@ try {
 
     http_response_code(201);
     echo json_encode([
-        'success' => true,
-        'id'      => $nuevoId,
-        'message' => 'Venta registrada correctamente.',
+        'success'               => true,
+        'id'                    => $nuevoId,
+        'saldo_favor_aplicado'  => $saldoFavorAplicado > 0.001 ? $saldoFavorAplicado : null,
+        'message'               => 'Venta registrada correctamente.',
     ]);
 
 } catch (RuntimeException $e) {

@@ -568,9 +568,10 @@ function AdminApp() {
           )}
 
           {paginaActual === 'pendientes' && (
-            <TratamientosPendientes
+          <TratamientosPendientes
               onToast={handleToastPendientes}
               onRegistrarPago={handleRegistrarPagoPendiente}
+              onTratamientoRealizado={() => setSaldosFavorReloadKey((k) => k + 1)}
               reloadKey={pendientesReloadKey}
             />
           )}
