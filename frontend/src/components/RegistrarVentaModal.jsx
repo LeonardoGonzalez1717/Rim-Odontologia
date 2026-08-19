@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   X, Save, User, Stethoscope, Calendar, Loader2,
   CheckCircle2, Plus, Trash2, Contact, CreditCard, AlertTriangle, Banknote,
-  Sparkles, DollarSign, FileText, BadgeCheck,
+  Sparkles, DollarSign, FileText, BadgeCheck, Wallet,
 } from 'lucide-react'
 import {
   registrarVenta,
@@ -24,6 +24,7 @@ import {
   getSaldoFavorCliente,
   marcarTratamientoRealizado,
   registrarSaldoFavor,
+  getMetodosPago,
 } from '../api/api'
 import { formatearDMAa } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
@@ -31,6 +32,17 @@ import ClienteSelect from './ClienteSelect'
 import DoctorSelect from './DoctorSelect'
 import ServicioSelect from './ServicioSelect'
 import { useServerDate, getActualServerDatetime } from '../hooks/useServerDate'
+
+// Métodos de pago por defecto (fallback si la API no está disponible)
+const METODOS_PAGO_FALLBACK = [
+  'Efectivo ($)',
+  'Efectivo (Bs)',
+  'Pago Móvil',
+  'Punto de Venta',
+  'Zelle',
+  'Transferencia',
+  'Otro',
+]
 
 const PORCENTAJE_INICIAL_CASHEA = 0.4
 
@@ -192,6 +204,27 @@ const RegistrarVentaModal = ({
 
   // ── Modo: 'venta' | 'abono'  (solo relevante cuando clienteTieneDeuda) ──
   const [modoAbono, setModoAbono] = useState(false)
+
+  // ── Métodos de Pago ──
+  const [pagos, setPagos] = useState([
+    { key: 'pago-init', metodo_pago: 'Efectivo ($)', monto: '', referencia: '', editadoManualmente: false },
+  ])
+  const [metodosPagoOpciones, setMetodosPagoOpciones] = useState(METODOS_PAGO_FALLBACK)
+
+  // Cargar métodos de pago activos desde la BD
+  useEffect(() => {
+    let mounted = true
+    getMetodosPago()
+      .then((res) => {
+        if (!mounted) return
+        const activos = (res.metodos ?? [])
+          .filter((m) => m.estado === 'activo')
+          .map((m) => m.nombre)
+        if (activos.length > 0) setMetodosPagoOpciones(activos)
+      })
+      .catch(() => { /* fallback silencioso */ })
+    return () => { mounted = false }
+  }, [])
 
   // ── Modo: Saldo a Favor (registrar saldo a favor sin tratamientos) ──
   const [modoSaldoFavor, setModoSaldoFavor] = useState(modoSaldoFavorInicial)
@@ -403,6 +436,28 @@ const RegistrarVentaModal = ({
     () => Math.round(Math.max(0, montoCaja - montoDescuentoSaldoFavor) * 100) / 100,
     [montoCaja, montoDescuentoSaldoFavor],
   )
+
+  const sumaPagos = useMemo(
+    () => Math.round(pagos.reduce((sum, p) => sum + (parseFloat(p.monto) || 0), 0) * 100) / 100,
+    [pagos],
+  )
+
+  const diferenciaPagos = useMemo(
+    () => Math.round((montoCajaFinal - sumaPagos) * 100) / 100,
+    [montoCajaFinal, sumaPagos],
+  )
+
+  // Sincronizar monto cuando sólo hay 1 método de pago y no ha sido editado manualmente
+  useEffect(() => {
+    if (pagos.length === 1 && !pagos[0].editadoManualmente) {
+      setPagos([
+        {
+          ...pagos[0],
+          monto: montoCajaFinal > 0 ? montoCajaFinal.toFixed(2) : '',
+        },
+      ])
+    }
+  }, [montoCajaFinal])
 
   const puedeAplicarSaldoFavor = Boolean(
     form.cliente_id
@@ -784,6 +839,68 @@ const RegistrarVentaModal = ({
     setMontoCasheaGrupoInput(null)
   }
 
+  // ── Manejadores de Métodos de Pago ──
+  const handleCambioMetodoPago = (key, metodo) => {
+    setError('')
+    setPagos((prev) => prev.map((p) => (p.key === key ? { ...p, metodo_pago: metodo } : p)))
+  }
+
+  const handleCambioMontoPago = (key, raw) => {
+    setError('')
+    setPagos((prev) => prev.map((p) => (p.key === key ? { ...p, monto: raw, editadoManualmente: true } : p)))
+  }
+
+  const handleCambioReferenciaPago = (key, raw) => {
+    setPagos((prev) => prev.map((p) => (p.key === key ? { ...p, referencia: raw } : p)))
+  }
+
+  const handleAgregarMetodoPago = () => {
+    setError('')
+    const restante = diferenciaPagos > 0 ? diferenciaPagos.toFixed(2) : ''
+    const usados = new Set(pagos.map((p) => p.metodo_pago))
+    const disponible = metodosPagoOpciones.find((m) => !usados.has(m)) || metodosPagoOpciones[0] || 'Efectivo ($)'
+    setPagos((prev) => [
+      ...prev,
+      {
+        key: `pago-${Date.now()}-${prev.length}`,
+        metodo_pago: disponible,
+        monto: restante,
+        referencia: '',
+        editadoManualmente: true,
+      },
+    ])
+  }
+
+  const handleQuitarMetodoPago = (key) => {
+    setError('')
+    setPagos((prev) => {
+      const filtrados = prev.filter((p) => p.key !== key)
+      if (filtrados.length === 0) {
+        return [{
+          key: `pago-${Date.now()}`,
+          metodo_pago: 'Efectivo ($)',
+          monto: montoCajaFinal > 0 ? montoCajaFinal.toFixed(2) : '',
+          referencia: '',
+          editadoManualmente: false,
+        }]
+      }
+      return filtrados
+    })
+  }
+
+  const handleAjustarRestante = () => {
+    if (pagos.length === 0) return
+    if (pagos.length === 1) {
+      setPagos([{ ...pagos[0], monto: montoCajaFinal > 0 ? montoCajaFinal.toFixed(2) : '' }])
+      return
+    }
+    const ultima = pagos[pagos.length - 1]
+    const nuevoMonto = Math.max(0, Math.round(((parseFloat(ultima.monto) || 0) + diferenciaPagos) * 100) / 100)
+    setPagos((prev) =>
+      prev.map((p, idx) => (idx === prev.length - 1 ? { ...p, monto: nuevoMonto > 0 ? nuevoMonto.toFixed(2) : '' } : p))
+    )
+  }
+
   const validar = () => {
     if (!form.cliente_id) return 'Por favor, selecciona un cliente.'
     if (!form.doctor_id) return 'Por favor, selecciona un doctor.'
@@ -817,6 +934,23 @@ const RegistrarVentaModal = ({
     if (precioInvalido) {
       return `${precioInvalido.nombre}: indica un monto válido mayor a $0 y no mayor al total del tratamiento.`
     }
+
+    if (montoCajaFinal > 0.001) {
+      for (let i = 0; i < pagos.length; i++) {
+        const p = pagos[i]
+        const m = parseFloat(p.monto)
+        if (!p.monto || !Number.isFinite(m) || m <= 0) {
+          return `Método de pago #${i + 1} (${p.metodo_pago}): indica un monto válido mayor a $0.`
+        }
+      }
+      if (Math.abs(diferenciaPagos) > 0.01) {
+        if (diferenciaPagos > 0) {
+          return `Faltan $${diferenciaPagos.toFixed(2)} por asignar en los métodos de pago (Total caja hoy: $${montoCajaFinal.toFixed(2)}).`
+        }
+        return `Los métodos de pago exceden por $${Math.abs(diferenciaPagos).toFixed(2)} el total a cobrar en caja ($${montoCajaFinal.toFixed(2)}).`
+      }
+    }
+
     return ''
   }
 
@@ -889,6 +1023,14 @@ const RegistrarVentaModal = ({
 
       const serviciosExpandidos = expandirLineasParaEnvio(lineas)
 
+      const pagosPayload = montoCajaFinal > 0.001
+        ? pagos.map((p) => ({
+            metodo_pago: p.metodo_pago,
+            monto: Math.round((parseFloat(p.monto) || 0) * 100) / 100,
+            referencia: p.referencia?.trim() || null,
+          }))
+        : []
+
       const res = await registrarVenta({
         cliente_id: parseInt(form.cliente_id),
         doctor_id: parseInt(form.doctor_id),
@@ -902,6 +1044,7 @@ const RegistrarVentaModal = ({
           ? descripcionCashea.trim()
           : null,
         servicios: serviciosExpandidos,
+        pagos: pagosPayload,
       })
 
       const cliente = clientes.find((c) => String(c.id) === form.cliente_id)
@@ -915,6 +1058,7 @@ const RegistrarVentaModal = ({
         cashea: tieneCashea,
         monto_caja: montoCajaFinal,
         saldo_favor_aplicado: montoDescuentoSaldoFavor,
+        pagos: pagosPayload,
         servicios: serviciosExpandidos.map((s, i) => ({
           nombre: lineas.find((l) => l.servicio_id === s.servicio_id)?.nombre
             ?? `Tratamiento ${i + 1}`,
@@ -951,6 +1095,9 @@ const RegistrarVentaModal = ({
           setMontoContadoInput(null)
           setMontoCasheaGrupoInput(null)
           setAplicarSaldoFavor(false)
+          setPagos([
+            { key: `pago-${Date.now()}`, metodo_pago: 'Efectivo ($)', monto: '', referencia: '', editadoManualmente: false },
+          ])
         }
         setExito(false)
         resetForm()
@@ -1781,6 +1928,121 @@ const RegistrarVentaModal = ({
                         : 'Puedes ajustar la fecha y hora del registro'}
                     </p>
                   </div>
+
+                  {/* ── Métodos de Pago ── */}
+                  {montoCajaFinal > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 animate-fade-in">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Wallet size={16} className="text-pink-600 flex-shrink-0" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Métodos de Pago
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-slate-500 font-medium">A cobrar en caja:</span>
+                          <span className="font-bold text-slate-800">${montoCajaFinal.toFixed(2)}</span>
+                          {Math.abs(diferenciaPagos) < 0.01 ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100/90 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 size={12} /> Cubierto
+                            </span>
+                          ) : diferenciaPagos > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-100/90 border border-amber-200 px-2 py-0.5 rounded-full">
+                              Falta ${diferenciaPagos.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-100/90 border border-rose-200 px-2 py-0.5 rounded-full">
+                              Excede +${Math.abs(diferenciaPagos).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {pagos.map((p) => (
+                          <div
+                            key={p.key}
+                            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm"
+                          >
+                            {/* Selector de Método */}
+                            <div className="sm:w-48 flex-shrink-0">
+                              <select
+                                value={p.metodo_pago}
+                                onChange={(e) => handleCambioMetodoPago(p.key, e.target.value)}
+                                className="form-input py-1.5 text-xs font-semibold text-slate-700 bg-slate-50"
+                              >
+                                {metodosPagoOpciones.map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Monto */}
+                            <div className="relative sm:w-36 flex-shrink-0">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">$</span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={p.monto}
+                                onChange={(e) => handleCambioMontoPago(p.key, e.target.value)}
+                                className="form-input pl-6 py-1.5 text-xs font-bold text-slate-800"
+                              />
+                            </div>
+
+                            {/* Referencia o notas */}
+                            <div className="flex-1 min-w-0">
+                              <input
+                                type="text"
+                                placeholder="Referencia / Banco (opcional)"
+                                value={p.referencia || ''}
+                                onChange={(e) => handleCambioReferenciaPago(p.key, e.target.value)}
+                                maxLength={100}
+                                className="form-input py-1.5 text-xs text-slate-700 placeholder:text-slate-400"
+                              />
+                            </div>
+
+                            {/* Botón eliminar fila */}
+                            {pagos.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuitarMetodoPago(p.key)}
+                                className="w-8 h-8 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors flex-shrink-0 self-end sm:self-center"
+                                title="Quitar método de pago"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Acciones de métodos de pago */}
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={handleAgregarMetodoPago}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-pink-600 hover:text-pink-700 hover:underline cursor-pointer"
+                        >
+                          <Plus size={14} />
+                          Agregar otro método de pago
+                        </button>
+
+                        {Math.abs(diferenciaPagos) > 0.001 && (
+                          <button
+                            type="button"
+                            onClick={handleAjustarRestante}
+                            className="text-xs text-slate-600 font-medium hover:text-slate-800 underline underline-offset-2 cursor-pointer"
+                          >
+                            {diferenciaPagos > 0 ? `Asignar restante ($${diferenciaPagos.toFixed(2)})` : 'Ajustar al total'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Contado / Cashea / Total ── */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

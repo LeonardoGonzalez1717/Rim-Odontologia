@@ -7,7 +7,7 @@
 //   - cancelando    {number|null} ID de la venta que se está cancelando (spinner)
 // =============================================================================
 import React, { useState } from 'react'
-import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye } from 'lucide-react'
+import { Clock, XCircle, CheckCircle2, Loader2, Receipt, Eye, Search, X } from 'lucide-react'
 import ConfirmPinModal from './ConfirmPinModal'
 import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
@@ -39,6 +39,22 @@ const VentasRecientes = ({
   // ID de la venta para la cual se muestra el diálogo de confirmación
   const [confirmandoId, setConfirmandoId] = useState(null)
   const [detalleId, setDetalleId] = useState(null)
+  const [busqueda, setBusqueda] = useState('')
+
+  // Filtrar localmente por búsqueda si se introduce texto
+  const q = busqueda.trim().toLowerCase()
+  const qNum = q.replace(/^#/, '')
+  const ventasVisibles = q
+    ? ventas.filter((v) => {
+      const matchId = String(v.id).includes(qNum) || (`#${v.id}`).includes(q)
+      const matchCliente = v.cliente?.toLowerCase().includes(q)
+      const matchDoctor = v.doctor?.toLowerCase().includes(q)
+      const matchServicio = (v.servicio || '')?.toLowerCase().includes(q)
+        || v.servicios?.some((s) => s.nombre?.toLowerCase().includes(q))
+      const matchUsuario = v.usuario_nombre?.toLowerCase().includes(q)
+      return matchId || matchCliente || matchDoctor || matchServicio || matchUsuario
+    })
+    : ventas
 
   // La venta que se está por confirmar (para el diálogo)
   const ventaAConfirmar = ventas.find((v) => v.id === confirmandoId)
@@ -77,7 +93,7 @@ const VentasRecientes = ({
       {confirmandoId && ventaAConfirmar && (
         <ConfirmPinModal
           titulo="¿Cancelar esta venta?"
-          descripcion={`${ventaAConfirmar.servicio} · ${ventaAConfirmar.doctor}`}
+          descripcion={`#${ventaAConfirmar.id} · ${ventaAConfirmar.servicio} · ${ventaAConfirmar.doctor}`}
           detalle="Esta acción no se puede deshacer."
           textoConfirmar="Sí, cancelar"
           variante="danger"
@@ -94,21 +110,42 @@ const VentasRecientes = ({
             <h2 className="font-bold text-slate-700 text-base">{titulo}</h2>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Buscador de Ventas */}
+            <div className="relative w-full sm:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar N° venta, cliente, doctor…"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-800 placeholder:text-slate-400 text-xs rounded-xl pl-9 pr-8 py-2 border border-slate-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 outline-none transition-all"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60 transition-colors"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
             {fechaFiltro && onFechaChange && !ocultarFiltro && (
               <FiltroFechaVentas fecha={fechaFiltro} onChange={onFechaChange} />
             )}
-            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full font-medium self-start sm:self-auto">
-              {paginacion?.total ?? ventas.length}{' '}
-              {(paginacion?.total ?? ventas.length) === 1 ? 'venta' : 'ventas'}
+            <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full font-medium whitespace-nowrap self-start sm:self-auto">
+              {paginacion?.total ?? ventasVisibles.length}{' '}
+              {(paginacion?.total ?? ventasVisibles.length) === 1 ? 'venta' : 'ventas'}
             </span>
           </div>
         </div>
 
         {/* Estado vacío */}
-        {ventas.length === 0 ? (
+        {ventasVisibles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-slate-400">
             <Receipt size={36} strokeWidth={1.5} className="mb-2 text-slate-300" />
-            <p className="text-sm">{mensajeVacio}</p>
+            <p className="text-sm">{busqueda ? 'No se encontraron ventas con ese criterio' : mensajeVacio}</p>
           </div>
         ) : (
           /* Tabla responsiva con scroll horizontal en móvil */
@@ -116,42 +153,45 @@ const VentasRecientes = ({
             <table className="w-full min-w-[750px]">
               <thead>
                 <tr className="border-b border-slate-100">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-2 whitespace-nowrap">
+                    N° Venta
+                  </th>
                   {mostrarFecha && (
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                       Fecha
                     </th>
                   )}
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Hora
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Cliente
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Doctor
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Servicio
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Registrado por
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Monto en caja
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Total venta
                   </th>
-                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Estado
                   </th>
-                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">
+                  <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 whitespace-nowrap">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {ventas.map((venta) => {
+                {ventasVisibles.map((venta) => {
                   const estaCancelando = cancelando === venta.id
                   const esCancelada = venta.estado === 'cancelada'
                   const cantServicios = venta.servicios?.length ?? 1
@@ -162,6 +202,11 @@ const VentasRecientes = ({
                       className={`transition-colors duration-150 ${esCancelada ? 'opacity-60' : 'hover:bg-slate-50/70'
                         }`}
                     >
+                      {/* N° Venta */}
+                      <td className="py-3.5 pr-4 pl-2 font-mono text-xs font-bold text-slate-700">
+                        #{venta.id}
+                      </td>
+
                       {mostrarFecha && (
                         <td className="py-3.5 pr-4">
                           <span className="text-sm text-slate-600 whitespace-nowrap">

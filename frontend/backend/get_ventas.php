@@ -150,6 +150,7 @@ try {
 
     $ventas = enriquecerVentasConServicios($pdo, $ventas);
     $ventas = enriquecerVentasConDeudaCashea($pdo, $ventas);
+    $ventas = enriquecerVentasConPagos($pdo, $ventas);
 
     echo json_encode([
         'success'    => true,

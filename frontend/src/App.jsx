@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Loader2, AlertCircle, X, Sparkles,
   LayoutDashboard, UserCog, Stethoscope, Menu,
-  ChevronRight, LogOut, UserCircle, Users, Contact, ClipboardList,
+  ChevronRight, LogOut, UserCircle, Users, Contact, ClipboardList, Wallet, Receipt,
 } from 'lucide-react'
 
 import Dashboard from './components/Dashboard'
@@ -20,6 +20,8 @@ import Doctores from './pages/Doctores'
 import Servicios from './pages/Servicios'
 import Clientes from './pages/Clientes'
 import Usuarios from './pages/Usuarios'
+import MetodosPago from './pages/MetodosPago'
+import CierreCaja from './pages/CierreCaja'
 import Login from './pages/Login'
 import AsistenteVenta from './pages/AsistenteVenta'
 import Logo from './components/Logo'
@@ -37,11 +39,13 @@ const VENTAS_POR_PAGINA = 10
 // Definición de las páginas del navbar
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Principal' },
+  { id: 'cierre-caja', label: 'Cierre de Caja', icon: Receipt, section: 'Principal' },
   { id: 'doctores', label: 'Doctores', icon: UserCog, section: 'Gestión' },
   { id: 'clientes', label: 'Clientes', icon: Contact, section: 'Gestión' },
   { id: 'servicios', label: 'Tratamientos', icon: Stethoscope, section: 'Gestión' },
   { id: 'pendientes', label: 'Tratamientos pendientes', icon: ClipboardList, section: 'Gestión' },
   { id: 'saldos-favor', label: 'Saldo a favor', icon: Sparkles, section: 'Gestión' },
+  { id: 'metodos-pago', label: 'Métodos de Pago', icon: Wallet, section: 'Administración' },
   { id: 'usuarios', label: 'Perfiles', icon: Users, section: 'Administración' },
 ]
 
@@ -553,6 +557,11 @@ function AdminApp() {
             </>
           )}
 
+          {/* ── Vista: Cierre de Caja ── */}
+          {paginaActual === 'cierre-caja' && (
+            <CierreCaja onToast={setToast} />
+          )}
+
           {/* ── Vista: Doctores ── */}
           {paginaActual === 'doctores' && (
             <Doctores onToast={setToast} />
@@ -581,6 +590,11 @@ function AdminApp() {
               onToast={handleToastPendientes}
               reloadKey={saldosFavorReloadKey}
             />
+          )}
+
+          {/* ── Vista: Métodos de Pago ── */}
+          {paginaActual === 'metodos-pago' && (
+            <MetodosPago onToast={setToast} />
           )}
 
           {/* ── Vista: Usuarios ── */}

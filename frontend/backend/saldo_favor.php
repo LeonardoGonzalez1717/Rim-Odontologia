@@ -132,6 +132,43 @@ try {
             ':precio'      => $monto,
         ]);
 
+        // Procesar métodos de pago si se envían o registrar default
+        $pagos = [];
+        if (!empty($body['pagos']) && is_array($body['pagos'])) {
+            foreach ($body['pagos'] as $pago) {
+                $metodo = trim((string) ($pago['metodo_pago'] ?? ''));
+                $montoPago = isset($pago['monto']) ? round((float) $pago['monto'], 2) : 0.0;
+                $ref = trim((string) ($pago['referencia'] ?? ''));
+                if ($metodo !== '' && $montoPago > 0) {
+                    $pagos[] = [
+                        'metodo_pago' => mb_substr($metodo, 0, 60),
+                        'monto'       => $montoPago,
+                        'referencia'  => $ref !== '' ? mb_substr($ref, 0, 100) : null,
+                    ];
+                }
+            }
+        }
+        if (empty($pagos)) {
+            $pagos[] = [
+                'metodo_pago' => 'Efectivo ($)',
+                'monto'       => $monto,
+                'referencia'  => null,
+            ];
+        }
+
+        $stmtPago = $pdo->prepare(
+            "INSERT INTO venta_pagos (venta_id, metodo_pago, monto, referencia)
+             VALUES (:venta_id, :metodo_pago, :monto, :referencia)"
+        );
+        foreach ($pagos as $p) {
+            $stmtPago->execute([
+                ':venta_id'    => $ventaId,
+                ':metodo_pago' => $p['metodo_pago'],
+                ':monto'       => $p['monto'],
+                ':referencia'  => $p['referencia'],
+            ]);
+        }
+
         $pdo->commit();
 
         echo json_encode([

@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react'
 import {
   X, Clock, User, Contact, Stethoscope, DollarSign, CreditCard, FileText,
-  ExternalLink, XCircle, Loader2, CheckCircle2, UserCheck, Sparkles
+  ExternalLink, XCircle, Loader2, CheckCircle2, UserCheck, Sparkles, Wallet
 } from 'lucide-react'
 import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
 
@@ -31,30 +31,8 @@ const DetalleVentaModal = ({
   const esCancelada = venta.estado === 'cancelada'
   const estaCancelando = cancelando === venta.id
 
-  // 1. Saldo a favor: Tratamientos pagados o financiados pendientes por realizar ("Otro día")
-  const serviciosSaldoFavor = servicios.filter(
-    (s) => s.realizado === false && (s.pagado === true || s.cashea === true)
-  )
-  const totalSaldoFavor = serviciosSaldoFavor.reduce((sum, s) => sum + (s.precio || 0), 0)
-
-  // Desglose del saldo a favor por origen (Cashea vs Contado)
-  const saldoFavorCashea = serviciosSaldoFavor
-    .filter((s) => s.cashea === true)
-    .reduce((sum, s) => sum + (s.precio || 0), 0)
-
-  const saldoFavorContado = serviciosSaldoFavor
-    .filter((s) => !s.cashea)
-    .reduce((sum, s) => sum + (s.precio || 0), 0)
-
-  // 2. Pendiente por pagar (tratamientos no pagados en la venta)
-  const serviciosPendientesPago = servicios.filter((s) => s.pagado === false)
-  const totalPendientePagoCalculado = serviciosPendientesPago.reduce(
-    (sum, s) => sum + (s.precio || 0),
-    0
-  )
-
-  // 3. Agrupar servicios: si hay un ítem cashea y uno pendiente del mismo nombre,
-  //    se muestran como uno solo con precio total y nota "Debe $X"
+  // Agrupar servicios: si hay un ítem cashea y uno pendiente del mismo nombre,
+  // se muestran como uno solo con precio total y nota "Debe $X"
   const serviciosAgrupados = (() => {
     const grupos = []
     const usados = new Set()
@@ -268,56 +246,6 @@ const DetalleVentaModal = ({
               </div>
             )}
 
-            {/* Saldo a Favor (Tratamientos abonados/pagados por realizar) */}
-            {!esCancelada && (totalSaldoFavor > 0.001 || (venta.saldo_favor ?? 0) > 0.001) && (
-              <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-3 space-y-1.5 animate-fade-in">
-                <div className="flex items-center justify-between text-emerald-900">
-                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-emerald-600" />
-                    Saldo a favor del cliente
-                  </span>
-                  <span className="text-sm font-bold text-emerald-700">
-                    {formatCurrency(totalSaldoFavor > 0.001 ? totalSaldoFavor : venta.saldo_favor)}
-                  </span>
-                </div>
-                <div className="text-xs text-emerald-800/90 pl-5 space-y-0.5 font-medium">
-                  {saldoFavorCashea > 0.001 && (
-                    <p className="flex items-center justify-between">
-                      <span>• Pagado/financiado con Cashea:</span>
-                      <span className="font-semibold text-emerald-900">{formatCurrency(saldoFavorCashea)}</span>
-                    </p>
-                  )}
-                  {saldoFavorContado > 0.001 && (
-                    <p className="flex items-center justify-between">
-                      <span>• Pagado de contado:</span>
-                      <span className="font-semibold text-emerald-900">{formatCurrency(saldoFavorContado)}</span>
-                    </p>
-                  )}
-                  <p className="text-[11px] text-emerald-700/80 italic pt-0.5">
-                    (Monto abonado/pagado de tratamientos pendientes por realizar)
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Pendiente por pagar (Tratamientos pendientes de cobro) */}
-            {!esCancelada && totalPendientePagoCalculado > 0.001 && (
-              <div className="bg-rose-50/90 border border-rose-200/80 rounded-xl p-3 space-y-1 animate-fade-in">
-                <div className="flex items-center justify-between text-rose-900">
-                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock size={13} className="text-rose-600" />
-                    Pendiente por pagar
-                  </span>
-                  <span className="text-sm font-bold text-rose-700">
-                    {formatCurrency(totalPendientePagoCalculado)}
-                  </span>
-                </div>
-                <p className="text-[11px] text-rose-700/80 pl-5 italic">
-                  (Monto por cobrar al cliente para completar el tratamiento)
-                </p>
-              </div>
-            )}
-
             {/* Saldo pendiente (Cashea) */}
             {!esCancelada && venta.cashea && (venta.deuda_restante ?? 0) > 0.001 && (
               <div className="flex items-center justify-between bg-amber-50/90 border border-amber-200/80 px-3 py-2 rounded-xl text-amber-900">
@@ -341,6 +269,36 @@ const DetalleVentaModal = ({
                 <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/80">
                   {venta.descripcion_cashea}
                 </p>
+              </div>
+            )}
+
+            {/* Desglose de Métodos de Pago */}
+            {!esCancelada && venta.pagos && venta.pagos.length > 0 && (
+              <div className="pt-2 border-t border-slate-200/70 space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Wallet size={13} className="text-pink-500" />
+                  Métodos de Pago
+                </p>
+                <div className="space-y-1.5">
+                  {venta.pagos.map((p, i) => (
+                    <div
+                      key={p.id ?? i}
+                      className="flex items-center justify-between text-xs bg-white border border-slate-200/80 px-3 py-2 rounded-xl"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-slate-700">{p.metodo_pago}</span>
+                        {p.referencia && (
+                          <span className="ml-2 text-slate-400 font-normal truncate">
+                            · {p.referencia}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-800 ml-2 whitespace-nowrap">
+                        {formatCurrency(p.monto)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

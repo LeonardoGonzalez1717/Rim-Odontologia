@@ -280,3 +280,65 @@ function enriquecerVentasConServicios(PDO $pdo, array $ventas): array
         ]);
     }, $ventas);
 }
+
+/**
+ * Obtiene los métodos de pago registrados de un conjunto de ventas.
+ *
+ * @return array<int, list<array{id: int, metodo_pago: string, monto: float, referencia: ?string}>>
+ */
+function obtenerPagosPorVentas(PDO $pdo, array $ventaIds): array
+{
+    if (empty($ventaIds)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ventaIds), '?'));
+    $stmt = $pdo->prepare(
+        "SELECT
+            id,
+            venta_id,
+            metodo_pago,
+            monto,
+            referencia
+         FROM venta_pagos
+         WHERE venta_id IN ($placeholders)
+         ORDER BY id ASC"
+    );
+    $stmt->execute(array_values($ventaIds));
+
+    $porVenta = [];
+    while ($row = $stmt->fetch()) {
+        $ventaId = (int) $row['venta_id'];
+        $porVenta[$ventaId][] = [
+            'id'          => (int) $row['id'],
+            'metodo_pago' => $row['metodo_pago'],
+            'monto'       => (float) $row['monto'],
+            'referencia'  => $row['referencia'],
+        ];
+    }
+
+    return $porVenta;
+}
+
+/**
+ * Enriquece filas de venta con su lista de métodos de pago.
+ *
+ * @param list<array<string, mixed>> $ventas
+ * @return list<array<string, mixed>>
+ */
+function enriquecerVentasConPagos(PDO $pdo, array $ventas): array
+{
+    if (empty($ventas)) {
+        return [];
+    }
+
+    $ids = array_map(fn($v) => (int) $v['id'], $ventas);
+    $pagosPorVenta = obtenerPagosPorVentas($pdo, $ids);
+
+    return array_map(function ($venta) use ($pagosPorVenta) {
+        $pagos = $pagosPorVenta[(int) $venta['id']] ?? [];
+        return array_merge($venta, [
+            'pagos' => $pagos,
+        ]);
+    }, $ventas);
+}

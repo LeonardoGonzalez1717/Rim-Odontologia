@@ -132,12 +132,22 @@ try {
         $stmtClientes->fetchAll()
     );
 
+    // --- Consulta de métodos de pago activos ---
+    $stmtMetodos = $pdo->query(
+        "SELECT id, nombre, estado, orden
+         FROM metodos_pago
+         WHERE estado = 'activo'
+         ORDER BY orden ASC, id ASC"
+    );
+    $metodosPago = $stmtMetodos->fetchAll();
+
     // --- Respuesta exitosa ---
     echo json_encode([
-        'success'   => true,
-        'doctores'  => $doctores,
-        'servicios' => $servicios,
-        'clientes'  => $clientes,
+        'success'      => true,
+        'doctores'     => $doctores,
+        'servicios'    => $servicios,
+        'clientes'     => $clientes,
+        'metodos_pago' => $metodosPago,
     ]);
 
 } catch (RuntimeException $e) {

@@ -1,12 +1,12 @@
 import React from 'react'
-import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2, Users } from 'lucide-react'
+import { DollarSign, Activity, RefreshCw, TrendingUp, FileBarChart2, Users, Wallet, Printer } from 'lucide-react'
 import MetricCard from './MetricCard'
 import VentasPorDoctor from './VentasPorDoctor'
 import VentasRecientes from './VentasRecientes'
 import CuotasCashea from './CuotasCashea'
 import FiltroFechaVentas from './FiltroFechaVentas'
-import { abrirReporteDiario } from '../utils/reportesPrint'
-import { getVentas } from '../api/api'
+import { abrirReporteDiario, abrirCierreCaja, imprimirCierreCaja } from '../utils/reportesPrint'
+import { getVentas, getCierreCaja } from '../api/api'
 import { esHoy, formatearFechaCorta } from '../utils/fechas'
 
 /**
@@ -145,8 +145,27 @@ const Dashboard = ({
           <div></div>
         )}
 
-        {/* Botón: Generar Reporte Diario */}
-        <div className="flex-shrink-0 lg:self-start">
+        {/* Botones de Reportes: Cierre de Caja + Reporte Diario */}
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0 lg:self-start">
+          <button
+            onClick={async () => {
+              try {
+                const res = await getCierreCaja({ fecha: fechaVentas, usuario_id: asistenteSeleccionado })
+                abrirCierreCaja(res)
+              } catch (err) {
+                console.error(err)
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs font-semibold
+                       text-slate-700 bg-white hover:bg-slate-50
+                       border border-slate-200 px-3.5 py-2.5 rounded-xl
+                       transition-all duration-200 shadow-sm"
+            title="Ver / Imprimir ticket de cierre de caja"
+          >
+            <Wallet size={14} className="text-pink-600" />
+            Cierre de Caja
+          </button>
+
           <button
             onClick={async () => {
               try {
@@ -154,6 +173,7 @@ const Dashboard = ({
                   fecha: fechaVentas,
                   pagina: 1,
                   por_pagina: 50,
+                  usuario_id: asistenteSeleccionado,
                 })
                 abrirReporteDiario({ ...datos, ventas_recientes: res.ventas ?? [] })
               } catch {
@@ -168,8 +188,8 @@ const Dashboard = ({
           >
             <FileBarChart2 size={15} />
             {esHoy(fechaVentas)
-              ? 'Generar Reporte del Día'
-              : `Reporte del ${formatearFechaCorta(fechaVentas)}`}
+              ? 'Reporte de Ventas'
+              : `Reporte ${formatearFechaCorta(fechaVentas)}`}
           </button>
         </div>
       </div>
@@ -178,7 +198,7 @@ const Dashboard = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
         {/* Ingresos del día */}
         <MetricCard
-          title={esHoy(fechaVentas) ? 'Ingresos del Día' : 'Ingresos del Día Seleccionado'}
+          title={esHoy(fechaVentas) ? 'Ingresos en Caja Hoy' : 'Ingresos en Caja'}
           value={formatCurrency(datos.ingresos_dia)}
           icon={DollarSign}
           color="pink"
@@ -193,20 +213,67 @@ const Dashboard = ({
           color="slate"
           subtitle="Procedimientos completados"
         />
-
-        {/* Promedio por tratamiento
-        <MetricCard
-          title="Promedio por Tratamiento"
-          value={
-            datos.total_tratamientos > 0
-              ? formatCurrency(datos.ingresos_dia / datos.total_tratamientos)
-              : '$0.00'
-          }
-          icon={TrendingUp}
-          color="rose"
-          subtitle={esHoy(fechaVentas) ? 'Ingreso promedio del día' : formatearFechaCorta(fechaVentas)}
-        /> */}
       </div>
+
+      {/* ── Desglose de Caja por Método de Pago ── */}
+      {datos.ingresos_por_metodo && datos.ingresos_por_metodo.length > 0 && (
+        <div className="card p-5 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600">
+                <Wallet size={15} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Cierre de Caja — Métodos de Pago
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Total ingresado a caja: <span className="font-bold text-slate-700">{formatCurrency(datos.ingresos_dia)}</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await getCierreCaja({ fecha: fechaVentas, usuario_id: asistenteSeleccionado })
+                  imprimirCierreCaja(res)
+                } catch (err) {
+                  console.error(err)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <Printer size={13} /> Imprimir Cierre
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {datos.ingresos_por_metodo.map((m) => (
+              <div
+                key={m.metodo_pago}
+                className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-xs font-bold text-slate-700 truncate" title={m.metodo_pago}>
+                    {m.metodo_pago}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {m.porcentaje}%
+                  </span>
+                </div>
+                <p className="text-base font-bold text-slate-900">
+                  {formatCurrency(m.total)}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {m.cantidad} cobro{m.cantidad !== 1 ? 's' : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Fila 2: Ventas por Doctor + Ventas Recientes + Cuotas Cashea ── */}
       <div className="grid grid-cols-1 gap-5">

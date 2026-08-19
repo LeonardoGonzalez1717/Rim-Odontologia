@@ -62,6 +62,8 @@ function obtenerConexion(): PDO
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, $opciones);
         asegurarColumnaUsuario($pdo);
+        asegurarTablaVentaPagos($pdo);
+        asegurarTablaMetodosPago($pdo);
         return $pdo;
     } catch (PDOException $e) {
         // En producción, loguear el error en vez de mostrarlo al cliente
@@ -81,6 +83,76 @@ function asegurarColumnaUsuario(PDO $pdo): void
         $stmt = $pdo->query("SHOW COLUMNS FROM ventas LIKE 'usuario_id'");
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE ventas ADD COLUMN usuario_id INT(11) NULL DEFAULT NULL AFTER cliente_id");
+        }
+        $verificado = true;
+    } catch (Throwable $e) {
+        // Ignorar si falla la verificación estática para evitar bloquear operaciones
+    }
+}
+
+/**
+ * Asegura que la tabla venta_pagos exista.
+ */
+function asegurarTablaVentaPagos(PDO $pdo): void
+{
+    static $verificado = false;
+    if ($verificado) return;
+
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `venta_pagos` (
+              `id` INT(11) NOT NULL AUTO_INCREMENT,
+              `venta_id` INT(11) NOT NULL,
+              `metodo_pago` VARCHAR(60) NOT NULL,
+              `monto` DECIMAL(10, 2) NOT NULL,
+              `referencia` VARCHAR(100) NULL DEFAULT NULL,
+              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              KEY `idx_venta_pagos_venta_id` (`venta_id`),
+              CONSTRAINT `fk_venta_pagos_venta`
+                FOREIGN KEY (`venta_id`) REFERENCES `ventas`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $verificado = true;
+    } catch (Throwable $e) {
+        // Ignorar si falla la verificación estática para evitar bloquear operaciones
+    }
+}
+
+/**
+ * Asegura que la tabla metodos_pago exista con sus semillas por defecto.
+ */
+function asegurarTablaMetodosPago(PDO $pdo): void
+{
+    static $verificado = false;
+    if ($verificado) return;
+
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `metodos_pago` (
+              `id` INT(11) NOT NULL AUTO_INCREMENT,
+              `nombre` VARCHAR(80) NOT NULL,
+              `estado` ENUM('activo','inactivo') NOT NULL DEFAULT 'activo',
+              `orden` INT(11) NOT NULL DEFAULT 0,
+              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              UNIQUE KEY `uq_metodos_pago_nombre` (`nombre`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        // Insertar semillas por defecto si la tabla está vacía
+        $count = (int)$pdo->query("SELECT COUNT(*) FROM `metodos_pago`")->fetchColumn();
+        if ($count === 0) {
+            $pdo->exec("
+                INSERT IGNORE INTO `metodos_pago` (`nombre`, `estado`, `orden`) VALUES
+                  ('Efectivo ($)', 'activo', 1),
+                  ('Efectivo (Bs)', 'activo', 2),
+                  ('Pago Móvil', 'activo', 3),
+                  ('Punto de Venta', 'activo', 4),
+                  ('Zelle', 'activo', 5),
+                  ('Transferencia', 'activo', 6),
+                  ('Otro', 'activo', 7)
+            ");
         }
         $verificado = true;
     } catch (Throwable $e) {

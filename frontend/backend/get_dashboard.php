@@ -201,19 +201,58 @@ try {
         ];
     }, $stmtRecientes->fetchAll());
 
+    // 5. Desglose de ingresos por método de pago del día
+    $stmtMetodosHoy = $pdo->prepare(
+        "SELECT
+            vp.metodo_pago,
+            SUM(vp.monto) as total,
+            COUNT(vp.id) as cantidad
+         FROM venta_pagos vp
+         INNER JOIN ventas v ON v.id = vp.venta_id
+         $whereIngresos
+         GROUP BY vp.metodo_pago
+         ORDER BY total DESC"
+    );
+    $paramsMetodos = [':fecha' => $fecha];
+    if ($usuarioId !== null) {
+        $paramsMetodos[':usuario_id'] = $usuarioId;
+    }
+    $stmtMetodosHoy->execute($paramsMetodos);
+    $ingresosPorMetodo = array_map(function ($row) use ($ingresosDia) {
+        $t = (float) $row['total'];
+        return [
+            'metodo_pago' => $row['metodo_pago'],
+            'total'       => $t,
+            'cantidad'    => (int) $row['cantidad'],
+            'porcentaje'  => $ingresosDia > 0 ? round(($t / $ingresosDia) * 100, 1) : 0,
+        ];
+    }, $stmtMetodosHoy->fetchAll());
+
+    // Si no hay pagos desglosados en venta_pagos pero hay ingresos en ventas, asignar a Efectivo ($)
+    if (empty($ingresosPorMetodo) && $ingresosVentas > 0) {
+        $ingresosPorMetodo[] = [
+            'metodo_pago' => 'Efectivo ($)',
+            'total'       => $ingresosVentas,
+            'cantidad'    => count($ventasRecientes),
+            'porcentaje'  => $ingresosDia > 0 ? round(($ingresosVentas / $ingresosDia) * 100, 1) : 100,
+        ];
+    }
+
     $ventasRecientes = enriquecerVentasConServicios($pdo, $ventasRecientes);
     $ventasRecientes = enriquecerVentasConDeudaCashea($pdo, $ventasRecientes);
+    $ventasRecientes = enriquecerVentasConPagos($pdo, $ventasRecientes);
 
     echo json_encode([
-        'success'             => true,
-        'fecha'               => $fecha,
-        'ingresos_dia'        => $ingresosDia,
-        'ingresos_ventas'     => $ingresosVentas,
+        'success'                => true,
+        'fecha'                  => $fecha,
+        'ingresos_dia'           => $ingresosDia,
+        'ingresos_ventas'        => $ingresosVentas,
         'ingresos_cuotas_cashea' => $ingresosCuotasCashea,
-        'cuotas_cashea'       => $cuotasCashea,
-        'total_tratamientos'  => $totalTratamientos,
-        'ventas_por_doctor'   => $ventasPorDoctor,
-        'ventas_recientes'    => $ventasRecientes,
+        'cuotas_cashea'          => $cuotasCashea,
+        'total_tratamientos'     => $totalTratamientos,
+        'ventas_por_doctor'      => $ventasPorDoctor,
+        'ventas_recientes'       => $ventasRecientes,
+        'ingresos_por_metodo'    => $ingresosPorMetodo,
     ]);
 
 } catch (RuntimeException $e) {

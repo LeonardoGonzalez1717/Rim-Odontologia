@@ -525,3 +525,61 @@ export async function registrarSaldoFavor(datos) {
   })
 }
 
+// =============================================================================
+// MÉTODOS DE PAGO
+// =============================================================================
+
+// GET /api/metodos_pago.php — Lista todos los métodos de pago (activos + inactivos)
+export async function getMetodosPago() {
+  return apiFetch(`${API_BASE}/metodos_pago.php`)
+}
+
+// POST /api/metodos_pago.php — Crear método de pago
+// @param {{ nombre: string }} datos
+export async function crearMetodoPago(datos) {
+  return apiFetch(`${API_BASE}/metodos_pago.php`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}
+
+// PUT /api/metodos_pago.php — Editar nombre/orden del método de pago
+// @param {{ id: number, nombre: string, orden?: number }} datos
+export async function actualizarMetodoPago(datos) {
+  return apiFetch(`${API_BASE}/metodos_pago.php`, {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  })
+}
+
+// PATCH /api/metodos_pago.php — Toggle activo/inactivo
+// @param {number} id
+export async function toggleMetodoPago(id) {
+  return apiFetch(`${API_BASE}/metodos_pago.php`, {
+    method: 'PATCH',
+    body: JSON.stringify({ id }),
+  })
+}
+
+// DELETE /api/metodos_pago.php — Eliminar método (si no tiene ventas)
+// @param {number} id
+export async function eliminarMetodoPago(id) {
+  return apiFetch(`${API_BASE}/metodos_pago.php`, {
+    method: 'DELETE',
+    body: JSON.stringify({ id }),
+  })
+}
+
+// =============================================================================
+// CIERRE DE CAJA
+// =============================================================================
+
+// GET /api/cierre_caja.php?fecha=YYYY-MM-DD
+// @param {{ fecha?: string, usuario_id?: number }} opciones
+export async function getCierreCaja({ fecha, usuario_id } = {}) {
+  const params = new URLSearchParams()
+  if (fecha) params.set('fecha', fecha)
+  if (usuario_id) params.set('usuario_id', String(usuario_id))
+  const qs = params.toString()
+  return apiFetch(`${API_BASE}/cierre_caja.php${qs ? `?${qs}` : ''}`)
+}

@@ -74,6 +74,37 @@ CREATE TABLE IF NOT EXISTS `venta_detalles` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
+-- TABLA: venta_pagos
+-- Desglose de métodos de pago utilizados en cada venta
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS `venta_pagos` (
+  `id`          INT(11)        NOT NULL AUTO_INCREMENT,
+  `venta_id`    INT(11)        NOT NULL,
+  `metodo_pago` VARCHAR(60)    NOT NULL,
+  `monto`       DECIMAL(10, 2) NOT NULL,
+  `referencia`  VARCHAR(100)   NULL DEFAULT NULL,
+  `created_at`  TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_venta_pagos_venta_id` (`venta_id`),
+  CONSTRAINT `fk_venta_pagos_venta`
+    FOREIGN KEY (`venta_id`) REFERENCES `ventas`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- TABLA: metodos_pago
+-- Catálogo de métodos de pago configurables
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS `metodos_pago` (
+  `id`          INT(11)      NOT NULL AUTO_INCREMENT,
+  `nombre`      VARCHAR(80)  NOT NULL,
+  `estado`      ENUM('activo','inactivo') NOT NULL DEFAULT 'activo',
+  `orden`       INT(11)      NOT NULL DEFAULT 0,
+  `created_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_metodos_pago_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
 -- TABLA: ajustes_cashea
 -- Cuotas de Cashea registradas manualmente que ingresan a caja
 -- =============================================================================

@@ -254,6 +254,45 @@ try {
         $montoCaja = round(max(0, $montoCaja - $saldoFavorAplicado), 2);
     }
 
+    // Procesar métodos de pago
+    $pagosNormalizados = [];
+    if (!empty($datos['pagos']) && is_array($datos['pagos'])) {
+        foreach ($datos['pagos'] as $pago) {
+            $metodo = trim((string) ($pago['metodo_pago'] ?? ''));
+            $montoPago = isset($pago['monto']) ? round((float) $pago['monto'], 2) : 0.0;
+            $referencia = trim((string) ($pago['referencia'] ?? ''));
+            if ($referencia === '') $referencia = null;
+
+            if ($metodo !== '' && $montoPago > 0) {
+                $pagosNormalizados[] = [
+                    'metodo_pago' => mb_substr($metodo, 0, 60),
+                    'monto'       => $montoPago,
+                    'referencia'  => $referencia !== null ? mb_substr($referencia, 0, 100) : null,
+                ];
+            }
+        }
+    }
+
+    if ($montoCaja > 0.001) {
+        if (empty($pagosNormalizados)) {
+            $pagosNormalizados[] = [
+                'metodo_pago' => 'Efectivo ($)',
+                'monto'       => $montoCaja,
+                'referencia'  => null,
+            ];
+        } else {
+            $sumaPagos = round(array_sum(array_column($pagosNormalizados, 'monto')), 2);
+            if (abs($sumaPagos - $montoCaja) > 0.01) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => "La suma de los métodos de pago ($" . number_format($sumaPagos, 2, '.', '') . ") no coincide con el total a cobrar en caja ($" . number_format($montoCaja, 2, '.', '') . ").",
+                ]);
+                exit;
+            }
+        }
+    }
+
     $stmtCheck = $pdo->prepare("
         SELECT id FROM ventas 
         WHERE cliente_id = :cliente_id 
@@ -336,6 +375,21 @@ try {
             ':cashea'      => $linea['cashea'],
             ':pagado'      => $linea['pagado'],
         ]);
+    }
+
+    if (!empty($pagosNormalizados)) {
+        $stmtPago = $pdo->prepare(
+            "INSERT INTO venta_pagos (venta_id, metodo_pago, monto, referencia)
+             VALUES (:venta_id, :metodo_pago, :monto, :referencia)"
+        );
+        foreach ($pagosNormalizados as $pago) {
+            $stmtPago->execute([
+                ':venta_id'    => $nuevoId,
+                ':metodo_pago' => $pago['metodo_pago'],
+                ':monto'       => $pago['monto'],
+                ':referencia'  => $pago['referencia'],
+            ]);
+        }
     }
 
     if ($saldoFavorAplicado > 0.001) {
