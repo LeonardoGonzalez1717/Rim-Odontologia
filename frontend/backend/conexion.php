@@ -7,13 +7,13 @@
 // --- Configuración de la base de datos ---
 // ⚠️ Modifica estos valores según tu entorno (XAMPP usa root sin contraseña por defecto)
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'rim_challouf');
+define('DB_NAME', 'rimconsu_challouf');
 define('DB_USER', 'root');
 define('DB_PASS', '');          // Cambiar en producción
 define('DB_CHARSET', 'utf8mb4');
 
-// Zona horaria del consultorio (debe coincidir con la del navegador al registrar ventas)
-date_default_timezone_set('America/New_York');
+// Zona horaria del consultorio (Venezuela) — nunca depende del reloj del PC del cliente
+date_default_timezone_set('America/Caracas');
 
 /**
  * Detecta el método HTTP, soportando method spoofing (_method en el body JSON)
@@ -169,7 +169,7 @@ function asegurarTablaMetodosPago(PDO $pdo): void
  */
 function obtenerFechaHoraInternet(): array
 {
-    $timezone = 'America/New_York';
+    $timezone = 'America/Caracas';
     $timestamp = null;
     $metodo = 'ninguno';
 

@@ -64,6 +64,26 @@ try {
 
         $normalizado = normalizarDatosCliente($cedula, $nombre, $telefono);
 
+        $stmtDup = $pdo->prepare(
+            "SELECT id, nombre, estado
+             FROM clientes
+             WHERE cedula = :cedula
+             LIMIT 1"
+        );
+        $stmtDup->execute([':cedula' => $normalizado['cedula']]);
+        $existente = $stmtDup->fetch();
+
+        if ($existente) {
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'message' => "Ya existe un cliente con la cédula {$normalizado['cedula']}"
+                    . ($existente['nombre'] ? " ({$existente['nombre']})" : '')
+                    . '.',
+            ]);
+            exit;
+        }
+
         $stmt = $pdo->prepare(
             "INSERT INTO clientes (cedula, nombre, telefono, estado)
              VALUES (:cedula, :nombre, :telefono, 'activo')"
@@ -104,6 +124,30 @@ try {
         }
 
         $normalizado = normalizarDatosCliente($cedula, $nombre, $telefono);
+
+        $stmtDup = $pdo->prepare(
+            "SELECT id, nombre
+             FROM clientes
+             WHERE cedula = :cedula
+               AND id <> :id
+             LIMIT 1"
+        );
+        $stmtDup->execute([
+            ':cedula' => $normalizado['cedula'],
+            ':id'     => $id,
+        ]);
+        $existente = $stmtDup->fetch();
+
+        if ($existente) {
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'message' => "Ya existe otro cliente con la cédula {$normalizado['cedula']}"
+                    . ($existente['nombre'] ? " ({$existente['nombre']})" : '')
+                    . '.',
+            ]);
+            exit;
+        }
 
         $stmt = $pdo->prepare(
             "UPDATE clientes

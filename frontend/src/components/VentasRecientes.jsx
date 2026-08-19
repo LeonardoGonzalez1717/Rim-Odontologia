@@ -13,6 +13,7 @@ import DetalleVentaModal from './DetalleVentaModal'
 import Paginacion from './Paginacion'
 import FiltroFechaVentas from './FiltroFechaVentas'
 import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
+import { formatearDMA, formatearHora12 } from '../utils/fechas'
 
 // -----------------------------------------------------------------------------
 // VentasRecientes — Componente principal
@@ -210,9 +211,7 @@ const VentasRecientes = ({
                       {mostrarFecha && (
                         <td className="py-3.5 pr-4">
                           <span className="text-sm text-slate-600 whitespace-nowrap">
-                            {new Date(`${venta.fecha}T12:00:00`).toLocaleDateString('es-MX', {
-                              day: '2-digit', month: 'short', year: 'numeric',
-                            })}
+                            {formatearDMA(venta.fecha)}
                           </span>
                         </td>
                       )}
@@ -220,7 +219,7 @@ const VentasRecientes = ({
                       <td className="py-3.5 pr-4">
                         <div className="flex items-center gap-1.5 text-slate-500">
                           <Clock size={13} className="flex-shrink-0" />
-                          <span className="text-sm font-medium">{venta.hora}</span>
+                          <span className="text-sm font-medium">{formatearHora12(venta.hora) || venta.hora}</span>
                         </div>
                       </td>
 

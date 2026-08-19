@@ -12,6 +12,7 @@ import Paginacion from '../components/Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { useAuth } from '../context/AuthContext'
 import { getUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from '../api/api'
+import { formatearDMA } from '../utils/fechas'
 
 const ROLES = [
   { value: 'admin', label: 'Administrador', desc: 'Acceso completo + PIN para acciones sensibles' },
@@ -514,9 +515,7 @@ const Usuarios = ({ onToast }) => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-500">
-                        {new Date(u.created_at).toLocaleDateString('es-MX', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                        })}
+                        {formatearDMA(u.created_at)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

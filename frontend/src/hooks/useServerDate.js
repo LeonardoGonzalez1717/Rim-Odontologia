@@ -1,8 +1,7 @@
 // =============================================================================
 // hooks/useServerDate.js
-// Obtiene la fecha actual desde el servidor PHP para evitar depender del
-// reloj local del cliente (que puede estar mal configurado).
-// Reintenta hasta obtener respuesta del servidor; nunca usa hora del dispositivo.
+// Obtiene la hora UTC desde el servidor/Internet y la muestra siempre en
+// America/Caracas (Venezuela). No usa la zona ni la hora local del PC.
 // =============================================================================
 import { useState, useEffect } from 'react'
 
@@ -21,12 +20,14 @@ const mensajeErrorConexion = () => (
   'No se pudo conectar con el servidor. Verifica tu conexión a Internet e intenta de nuevo.'
 )
 
-// Cache y offset para el cálculo dinámico de la hora del servidor
+// Zona horaria fija del consultorio (Venezuela). No usa la zona del navegador/PC.
+export const TZ_CONSULTORIO = 'America/Caracas'
+
+// Cache y offset para el cálculo dinámico de la hora (UTC de Internet + corrección del PC)
 let _cached = null
 let _promise = null
 let _synced = false
 let _timeOffsetMs = 0
-let _serverTimezoneOffsetMs = 0
 let _cargando = true
 let _intentos = 0
 let _error = null
@@ -36,15 +37,35 @@ const listeners = new Set()
 /** Indica si la hora del servidor/internet ya fue sincronizada */
 export const isServerDateSynced = () => _synced
 
-/** Devuelve la fecha/hora actual del servidor en tiempo real (calculada) */
+/**
+ * Formatea un instante UTC como fecha/hora de pared en America/Caracas
+ * para inputs datetime-local ("YYYY-MM-DDTHH:mm"), sin usar la zona del PC.
+ */
+const formatearDatetimeCaracas = (utcMs) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ_CONSULTORIO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(utcMs))
+
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`
+}
+
+/** Devuelve la fecha/hora actual en Venezuela (calculada desde UTC de Internet) */
 export const getActualServerDatetime = () => {
   if (!_synced) return ''
   const currentUtcMs = Date.now() + _timeOffsetMs
-  const serverLocalMs = currentUtcMs + _serverTimezoneOffsetMs
-  return new Date(serverLocalMs).toISOString().slice(0, 16)
+  return formatearDatetimeCaracas(currentUtcMs)
 }
 
-/** Devuelve la fecha "YYYY-MM-DD" actual del servidor en tiempo real */
+/** Devuelve la fecha "YYYY-MM-DD" actual en Venezuela */
 export const getActualServerDate = () => {
   const dt = getActualServerDatetime()
   return dt ? dt.slice(0, 10) : ''
@@ -59,7 +80,6 @@ const resetSincronizacion = () => {
   _promise = null
   _synced = false
   _timeOffsetMs = 0
-  _serverTimezoneOffsetMs = 0
   _cargando = true
   _intentos = 0
   _error = null
@@ -86,8 +106,8 @@ async function fetchServerDateOnce() {
     }
     const data = await response.json()
     if (data?.success && data?.timestamp !== undefined) {
+      // Solo sincronizamos UTC; la zona Venezuela se aplica al formatear
       _timeOffsetMs = data.timestamp - Date.now()
-      _serverTimezoneOffsetMs = data.timezone_offset || 0
       _synced = true
       _cached = getActualServerDate()
       _cargando = false

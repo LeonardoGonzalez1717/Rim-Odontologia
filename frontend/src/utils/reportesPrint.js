@@ -3,6 +3,7 @@
  */
 
 import html2canvas from 'html2canvas'
+import { formatearDMA, formatearDMAHora, formatearHora12 } from './fechas'
 
 export const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v ?? 0)
@@ -473,7 +474,7 @@ const buildNotaEntregaContenido = (venta, { incluirBarraImpresion = true } = {})
     <div class="report-meta">
       <p><strong>Cliente:</strong> ${esc(venta.cliente || '—')}</p>
       <p><strong>Doctor:</strong> ${esc(venta.doctor)}</p>
-      <p style="color: #666;"><strong>Fecha:</strong> ${esc(venta.fecha_venta || ' ')}</p>
+      <p style="color: #666;"><strong>Fecha:</strong> ${esc(formatearDMAHora(venta.fecha_venta) || ' ')}</p>
     </div>
   </div>
   <table>
@@ -641,7 +642,7 @@ export const abrirReporteDiario = (datos) => {
   const filasCashea = cuotas.map((c) => `
     <tr>
       <td>${esc(c.concepto)}</td>
-      <td>${esc(c.hora)}</td>
+      <td>${esc(formatearHora12(c.hora) || c.hora)}</td>
       <td>${fmt(c.monto)}</td>
     </tr>
   `).join('')
@@ -656,7 +657,7 @@ export const abrirReporteDiario = (datos) => {
   <div class="header-info">
     <div class="report-meta">
       <p style="font-weight: 700;">Reporte de Ventas</p>
-      <p><strong>Fecha:</strong> ${fechaReporte ? esc(fechaReporte) : ' '}</p>
+      <p><strong>Fecha:</strong> ${fechaReporte ? esc(formatearDMAHora(fechaReporte) || formatearDMA(fechaReporte)) : ' '}</p>
     </div>
   </div>
   <table>
@@ -740,7 +741,7 @@ export const buildCierreCajaContenido = (datos, { incluirBarraImpresion = true }
   const filasTransacciones = transacciones.map((t, index) => `
     <tr>
       <td class="center" style="color: #64748b; font-family: monospace;">${index + 1}</td>
-      <td class="center" style="font-family: monospace; font-weight: 600;">${esc(t.hora)}</td>
+      <td class="center" style="font-family: monospace; font-weight: 600;">${esc(formatearHora12(t.hora) || t.hora)}</td>
       <td>
         <span style="font-weight: 600; color: #0f172a;">${esc(t.cliente || '—')}</span>
         ${t.cliente_cedula ? `<span style="display: block; font-size: 10px; color: #64748b; font-family: monospace;">CI: ${esc(t.cliente_cedula)}</span>` : ''}
@@ -756,7 +757,10 @@ export const buildCierreCajaContenido = (datos, { incluirBarraImpresion = true }
     </tr>
   `).join('')
 
-  const horaImpresion = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const ahora = new Date()
+  const horaImpresion = formatearHora12(
+    `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+  )
 
   return `
   ${barraImpresion}
@@ -772,7 +776,7 @@ export const buildCierreCajaContenido = (datos, { incluirBarraImpresion = true }
       </div>
       <div class="report-doc-title">
         <h2>Cierre de Caja</h2>
-        <p>Fecha: <strong>${esc(fecha)}</strong> · Emisión: <strong>${horaImpresion}</strong></p>
+        <p>Fecha: <strong>${esc(formatearDMA(fecha) || fecha)}</strong> · Emisión: <strong>${horaImpresion}</strong></p>
       </div>
     </div>
 
@@ -883,7 +887,7 @@ export const buildCierreCajaContenido = (datos, { incluirBarraImpresion = true }
  */
 export const abrirCierreCaja = (datos) => {
   abrirVentanaImpresion(
-    `Cierre de Caja — Rim Challouf (${datos.fecha || ''})`,
+    `Cierre de Caja — Rim Challouf (${formatearDMA(datos.fecha) || datos.fecha || ''})`,
     buildCierreCajaContenido(datos),
     'cierre_caja',
     { estilos: REPORT_HOJA_STYLES, ancho: 960, alto: 850 },
@@ -895,7 +899,7 @@ export const abrirCierreCaja = (datos) => {
  */
 export const imprimirCierreCaja = (datos) => {
   imprimirVentanaDirecta(
-    `Cierre de Caja — Rim Challouf (${datos.fecha || ''})`,
+    `Cierre de Caja — Rim Challouf (${formatearDMA(datos.fecha) || datos.fecha || ''})`,
     buildCierreCajaContenido(datos, { incluirBarraImpresion: false }),
     'imprimir_cierre_caja',
     { estilos: REPORT_HOJA_STYLES, ancho: 960, alto: 850 },

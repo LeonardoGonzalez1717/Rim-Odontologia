@@ -15,7 +15,7 @@ import MetricCard from '../components/MetricCard'
 import Paginacion from '../components/Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { useServerDate } from '../hooks/useServerDate'
-import { esHoy, formatearFechaCorta } from '../utils/fechas'
+import { esHoy, formatearFechaCorta, formatearHora12 } from '../utils/fechas'
 
 const CierreCaja = ({ onToast }) => {
   const { hoy: hoyServidor } = useServerDate()
@@ -403,7 +403,7 @@ const CierreCaja = ({ onToast }) => {
                           #{t.venta_id}
                         </td>
                         <td className="px-4 py-3 font-mono text-slate-500">
-                          {t.hora}
+                          {formatearHora12(t.hora) || t.hora}
                         </td>
                         <td className="px-4 py-3">
                           <span className="font-semibold text-slate-800">{t.cliente}</span>

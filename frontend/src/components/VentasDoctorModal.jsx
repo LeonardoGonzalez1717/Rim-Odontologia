@@ -10,7 +10,7 @@ import { getVentas } from '../api/api'
 import Paginacion from './Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { fmt } from '../utils/reportesPrint'
-import { formatearFechaLarga } from '../utils/fechas'
+import { formatearFechaLarga, formatearHora12 } from '../utils/fechas'
 
 const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClose }) => {
   const [ventas, setVentas] = useState([])
@@ -163,7 +163,7 @@ const VentasDoctorModal = ({ doctor, fecha, asistenteSeleccionado = null, onClos
                           <td className="py-3.5 pr-3">
                             <div className="flex items-center gap-1.5 text-slate-500">
                               <Clock size={13} />
-                              <span className="text-sm font-medium">{venta.hora}</span>
+                              <span className="text-sm font-medium">{formatearHora12(venta.hora) || venta.hora}</span>
                             </div>
                           </td>
                           <td className="py-3.5 pr-3">

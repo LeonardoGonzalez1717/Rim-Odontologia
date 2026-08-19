@@ -7,7 +7,7 @@ import {
   ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Clock, Banknote,
 } from 'lucide-react'
 import { getTratamientosPendientes, marcarTratamientoRealizado } from '../api/api'
-import { formatearDMAa } from '../utils/fechas'
+import { formatearDMA } from '../utils/fechas'
 
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
@@ -226,7 +226,7 @@ const TratamientosPendientes = ({ onVolver, onToast, onRegistrarPago, onTratamie
                               <p className="text-sm font-medium text-slate-800">{t.nombre}</p>
                               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                                 <Clock size={11} />
-                                Venta del {formatearDMAa(t.fecha)} · {fmt(t.precio)}
+                                Venta del {formatearDMA(t.fecha)} · {fmt(t.precio)}
                                 {!t.pagado && (
                                   <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
                                 )}

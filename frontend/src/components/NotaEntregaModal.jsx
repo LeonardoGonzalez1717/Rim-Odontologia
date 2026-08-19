@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react'
 import { X, Printer, Download, CheckCircle2, FileText, Loader2, Calendar } from 'lucide-react'
 import { abrirNotaEntrega, imprimirNotaEntrega, descargarNotaEntrega, fmt } from '../utils/reportesPrint'
+import { formatearDMAHora } from '../utils/fechas'
 
 const NotaEntregaModal = ({ venta, onClose }) => {
   const [descargando, setDescargando] = useState(false)
@@ -37,15 +38,7 @@ const NotaEntregaModal = ({ venta, onClose }) => {
     : [{ nombre: venta.servicio, precio: venta.total }]
 
   // Formatea "2026-07-30 13:33:00" → "30/07/2026 · 13:33"
-  const fechaTexto = (() => {
-    const raw = venta.fecha_venta || ''
-    if (!raw) return null
-    const [fecha, hora] = raw.split(' ')
-    if (!fecha) return null
-    const [y, m, d] = fecha.split('-')
-    const horaCorta = hora ? hora.slice(0, 5) : ''
-    return `${d}/${m}/${y}${horaCorta ? ' · ' + horaCorta : ''}`
-  })()
+  const fechaTexto = formatearDMAHora(venta.fecha_venta) || null
 
   return (
     <div

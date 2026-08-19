@@ -7,6 +7,7 @@ import {
   ExternalLink, XCircle, Loader2, CheckCircle2, UserCheck, Sparkles, Wallet
 } from 'lucide-react'
 import { fmt as formatCurrency, abrirNotaEntrega } from '../utils/reportesPrint'
+import { formatearDMA, formatearHora12 } from '../utils/fechas'
 
 const DetalleVentaModal = ({
   venta,
@@ -30,6 +31,19 @@ const DetalleVentaModal = ({
 
   const esCancelada = venta.estado === 'cancelada'
   const estaCancelando = cancelando === venta.id
+
+  const pagos = (() => {
+    if (Array.isArray(venta.pagos) && venta.pagos.length > 0) {
+      return venta.pagos
+    }
+    const montoCaja = Number(venta.monto_caja ?? 0)
+    if (montoCaja > 0.001) {
+      return [{ metodo_pago: 'Efectivo ($)', monto: montoCaja, referencia: null }]
+    }
+    return []
+  })()
+
+  const resumenMetodos = pagos.map((p) => p.metodo_pago).filter(Boolean).join(' · ')
 
   // Agrupar servicios: si hay un ítem cashea y uno pendiente del mismo nombre,
   // se muestran como uno solo con precio total y nota "Debe $X"
@@ -92,10 +106,8 @@ const DetalleVentaModal = ({
             <h2 className="text-xl font-bold text-slate-800">Opciones y Detalle de Venta</h2>
             <p className="text-sm text-slate-500 mt-0.5">
               {mostrarFecha && venta.fecha
-                ? `${new Date(`${venta.fecha}T12:00:00`).toLocaleDateString('es-MX', {
-                  day: '2-digit', month: 'short', year: 'numeric',
-                })} · ${venta.hora}`
-                : venta.hora}
+                ? `${formatearDMA(venta.fecha)}${venta.hora ? ` · ${formatearHora12(venta.hora) || venta.hora}` : ''}`
+                : (formatearHora12(venta.hora) || venta.hora)}
             </p>
           </div>
           <button
@@ -136,6 +148,15 @@ const DetalleVentaModal = ({
                 <p className="text-sm font-medium text-slate-700">{venta.usuario_nombre}</p>
               </div>
             )}
+            <div className={`${venta.usuario_nombre ? '' : 'sm:col-span-2'} pt-2 border-t border-slate-200/60`}>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <Wallet size={12} className="inline mr-1 text-pink-500" />
+                Método de pago
+              </p>
+              <p className="text-sm font-medium text-slate-700">
+                {resumenMetodos || (venta.cashea ? 'Solo Cashea (sin cobro en caja)' : '—')}
+              </p>
+            </div>
           </div>
 
           {/* Tratamientos */}
@@ -273,14 +294,14 @@ const DetalleVentaModal = ({
             )}
 
             {/* Desglose de Métodos de Pago */}
-            {!esCancelada && venta.pagos && venta.pagos.length > 0 && (
+            {pagos.length > 0 && (
               <div className="pt-2 border-t border-slate-200/70 space-y-2">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Wallet size={13} className="text-pink-500" />
                   Métodos de Pago
                 </p>
                 <div className="space-y-1.5">
-                  {venta.pagos.map((p, i) => (
+                  {pagos.map((p, i) => (
                     <div
                       key={p.id ?? i}
                       className="flex items-center justify-between text-xs bg-white border border-slate-200/80 px-3 py-2 rounded-xl"
@@ -293,7 +314,7 @@ const DetalleVentaModal = ({
                           </span>
                         )}
                       </div>
-                      <span className="font-bold text-slate-800 ml-2 whitespace-nowrap">
+                      <span className={`font-bold ml-2 whitespace-nowrap ${esCancelada ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                         {formatCurrency(p.monto)}
                       </span>
                     </div>

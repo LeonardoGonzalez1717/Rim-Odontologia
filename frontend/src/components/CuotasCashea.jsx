@@ -5,6 +5,7 @@ import React from 'react'
 import { CreditCard, Clock } from 'lucide-react'
 import Paginacion from './Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
+import { formatearHora12 } from '../utils/fechas'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(value ?? 0)
@@ -72,7 +73,7 @@ const CuotasCashea = ({ datos = [], total = 0 }) => {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-500 mt-0.5">
                       <span className="inline-flex items-center gap-1.5 text-xs">
                         <Clock size={12} className="flex-shrink-0" />
-                        {cuota.hora}
+                        {formatearHora12(cuota.hora) || cuota.hora}
                       </span>
                       {detalle && (
                         <span className="text-xs truncate">{detalle}</span>

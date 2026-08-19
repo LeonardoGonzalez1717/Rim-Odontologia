@@ -26,7 +26,7 @@ import {
   registrarSaldoFavor,
   getMetodosPago,
 } from '../api/api'
-import { formatearDMAa } from '../utils/fechas'
+import { formatearDMA, formatearDMAHora } from '../utils/fechas'
 import ClienteModal from './ClienteModal'
 import ClienteSelect from './ClienteSelect'
 import DoctorSelect from './DoctorSelect'
@@ -34,6 +34,8 @@ import ServicioSelect from './ServicioSelect'
 import { useServerDate, getActualServerDatetime } from '../hooks/useServerDate'
 
 // Métodos de pago por defecto (fallback si la API no está disponible)
+const METODO_PAGO_POR_DEFECTO_ID = 4
+const METODO_PAGO_POR_DEFECTO = 'Punto de Venta'
 const METODOS_PAGO_FALLBACK = [
   'Efectivo ($)',
   'Efectivo (Bs)',
@@ -206,21 +208,36 @@ const RegistrarVentaModal = ({
   const [modoAbono, setModoAbono] = useState(false)
 
   // ── Métodos de Pago ──
+  const [metodoPagoDefault, setMetodoPagoDefault] = useState(METODO_PAGO_POR_DEFECTO)
   const [pagos, setPagos] = useState([
-    { key: 'pago-init', metodo_pago: 'Efectivo ($)', monto: '', referencia: '', editadoManualmente: false },
+    { key: 'pago-init', metodo_pago: METODO_PAGO_POR_DEFECTO, monto: '', referencia: '', editadoManualmente: false },
   ])
   const [metodosPagoOpciones, setMetodosPagoOpciones] = useState(METODOS_PAGO_FALLBACK)
 
-  // Cargar métodos de pago activos desde la BD
+  // Cargar métodos de pago activos desde la BD (default = id 4 · Punto de Venta)
   useEffect(() => {
     let mounted = true
     getMetodosPago()
       .then((res) => {
         if (!mounted) return
-        const activos = (res.metodos ?? [])
+        const metodos = res.metodos ?? []
+        const activos = metodos
           .filter((m) => m.estado === 'activo')
-          .map((m) => m.nombre)
-        if (activos.length > 0) setMetodosPagoOpciones(activos)
+          .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.id - b.id)
+        const nombres = activos.map((m) => m.nombre)
+        if (nombres.length > 0) setMetodosPagoOpciones(nombres)
+
+        const preferido = activos.find((m) => Number(m.id) === METODO_PAGO_POR_DEFECTO_ID)
+          || activos.find((m) => m.nombre === METODO_PAGO_POR_DEFECTO)
+          || activos[0]
+        const nombreDefault = preferido?.nombre || METODO_PAGO_POR_DEFECTO
+        setMetodoPagoDefault(nombreDefault)
+
+        setPagos((prev) => {
+          if (prev.length !== 1 || prev[0].editadoManualmente) return prev
+          if (prev[0].metodo_pago === nombreDefault) return prev
+          return [{ ...prev[0], metodo_pago: nombreDefault }]
+        })
       })
       .catch(() => { /* fallback silencioso */ })
     return () => { mounted = false }
@@ -858,7 +875,7 @@ const RegistrarVentaModal = ({
     setError('')
     const restante = diferenciaPagos > 0 ? diferenciaPagos.toFixed(2) : ''
     const usados = new Set(pagos.map((p) => p.metodo_pago))
-    const disponible = metodosPagoOpciones.find((m) => !usados.has(m)) || metodosPagoOpciones[0] || 'Efectivo ($)'
+    const disponible = metodosPagoOpciones.find((m) => !usados.has(m)) || metodosPagoOpciones[0] || metodoPagoDefault
     setPagos((prev) => [
       ...prev,
       {
@@ -878,7 +895,7 @@ const RegistrarVentaModal = ({
       if (filtrados.length === 0) {
         return [{
           key: `pago-${Date.now()}`,
-          metodo_pago: 'Efectivo ($)',
+          metodo_pago: metodoPagoDefault,
           monto: montoCajaFinal > 0 ? montoCajaFinal.toFixed(2) : '',
           referencia: '',
           editadoManualmente: false,
@@ -1096,7 +1113,7 @@ const RegistrarVentaModal = ({
           setMontoCasheaGrupoInput(null)
           setAplicarSaldoFavor(false)
           setPagos([
-            { key: `pago-${Date.now()}`, metodo_pago: 'Efectivo ($)', monto: '', referencia: '', editadoManualmente: false },
+            { key: `pago-${Date.now()}`, metodo_pago: metodoPagoDefault, monto: '', referencia: '', editadoManualmente: false },
           ])
         }
         setExito(false)
@@ -1396,11 +1413,13 @@ const RegistrarVentaModal = ({
                     </label>
                     <input
                       id="fecha_saldo_favor"
-                      type="datetime-local"
+                      type="text"
                       name="fecha_venta"
-                      value={form.fecha_venta}
-                      onChange={handleChange}
-                      className="form-input text-xs bg-white"
+                      value={form.fecha_venta ? formatearDMAHora(form.fecha_venta) : ''}
+                      readOnly
+                      tabIndex={-1}
+                      className="form-input text-xs bg-slate-50 text-slate-600 cursor-default"
+                      aria-label="Fecha y hora de Venezuela (no editable)"
                     />
                   </div>
 
@@ -1503,7 +1522,7 @@ const RegistrarVentaModal = ({
                               <div className="min-w-0">
                                 <p className="font-medium text-slate-700 truncate">{t.nombre}</p>
                                 <p className="text-slate-400 mt-0.5">
-                                  {formatearDMAa(t.fecha)}
+                                  {formatearDMA(t.fecha)}
                                   {t.pagado === false && (
                                     <span className="text-amber-700 font-medium"> · Pendiente de pago</span>
                                   )}
@@ -1590,7 +1609,7 @@ const RegistrarVentaModal = ({
                               ?? Math.max(0, (v.deuda_restante ?? 0) - (v.saldo_pendiente_pago ?? 0))
                             return (
                               <option key={v.id} value={String(v.id)}>
-                                {formatearDMAa(v.fecha)} — ${deudaCashea.toFixed(2)} deuda Cashea
+                                {formatearDMA(v.fecha)} — ${deudaCashea.toFixed(2)} deuda Cashea
                               </option>
                             )
                           })}
@@ -1650,14 +1669,13 @@ const RegistrarVentaModal = ({
                         </label>
                         <input
                           id="fecha_abono"
-                          type="datetime-local"
+                          type="text"
                           name="fecha_venta"
-                          value={form.fecha_venta}
-                          onChange={(e) => {
-                            setErrorAbono('')
-                            handleChange(e)
-                          }}
-                          className="form-input"
+                          value={form.fecha_venta ? formatearDMAHora(form.fecha_venta) : ''}
+                          readOnly
+                          tabIndex={-1}
+                          className="form-input bg-slate-50 text-slate-600 cursor-default"
+                          aria-label="Fecha y hora de Venezuela (no editable)"
                         />
                       </div>
 
@@ -1915,17 +1933,18 @@ const RegistrarVentaModal = ({
                     </label>
                     <input
                       id="fecha_venta"
-                      type="datetime-local"
+                      type="text"
                       name="fecha_venta"
-                      value={form.fecha_venta}
-                      onChange={handleChange}
-                      className="form-input"
-                      aria-label="Fecha y hora de la venta"
+                      value={form.fecha_venta ? formatearDMAHora(form.fecha_venta) : ''}
+                      readOnly
+                      tabIndex={-1}
+                      className="form-input bg-slate-50 text-slate-600 cursor-default"
+                      aria-label="Fecha y hora de Venezuela (no editable)"
                     />
                     <p className="text-xs text-slate-500 mt-1">
                       {cargando && !form.fecha_venta
-                        ? 'Sincronizando hora con el servidor…'
-                        : 'Puedes ajustar la fecha y hora del registro'}
+                        ? 'Sincronizando hora de Venezuela…'
+                        : 'Hora de Venezuela (automática) · día/mes/año'}
                     </p>
                   </div>
 

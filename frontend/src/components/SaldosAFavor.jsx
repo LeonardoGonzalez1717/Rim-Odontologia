@@ -8,7 +8,7 @@ import {
   ChevronLeft, Loader2, Search, X, CheckCircle2, Contact, Sparkles,
 } from 'lucide-react'
 import { getSaldosAFavor } from '../api/api'
-import { formatearDMAa } from '../utils/fechas'
+import { formatearDMA } from '../utils/fechas'
 
 const fmt = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' }).format(v)
@@ -182,7 +182,7 @@ const SaldosAFavor = ({ onVolver, onToast, reloadKey = 0 }) => {
                                   {m.concepto || 'Movimiento'}
                                 </p>
                                 <p className="text-slate-400 mt-0.5">
-                                  {formatearDMAa(m.fecha)}
+                                  {formatearDMA(m.fecha)}
                                 </p>
                               </div>
                               <span

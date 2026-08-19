@@ -2,11 +2,12 @@
 // components/SaldoFavorModal.jsx
 // Modal para registrar un saldo a favor a un cliente (cliente, monto, fecha, concepto)
 // =============================================================================
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, Sparkles, User, Calendar, DollarSign, FileText, Loader2, CheckCircle2 } from 'lucide-react'
 import ClienteSelect from './ClienteSelect'
 import { registrarSaldoFavor } from '../api/api'
 import { useServerDate, getActualServerDatetime } from '../hooks/useServerDate'
+import { formatearDMAHora } from '../utils/fechas'
 
 const SaldoFavorModal = ({
   onClose,
@@ -22,7 +23,6 @@ const SaldoFavorModal = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
-  const fechaManualRef = useRef(false)
 
   useEffect(() => {
     if (cargando) return
@@ -55,11 +55,10 @@ const SaldoFavorModal = ({
 
     setLoading(true)
     try {
-      const fechaEnvio = fechaManualRef.current && fecha ? fecha.replace('T', ' ') + ':00' : ''
       await registrarSaldoFavor({
         cliente_id: parseInt(clienteId, 10),
         monto: montoNum,
-        fecha: fechaEnvio,
+        fecha: '',
         concepto: concepto.trim() || 'Saldo a favor registrado',
       })
 
@@ -169,14 +168,12 @@ const SaldoFavorModal = ({
             </label>
             <input
               id="fecha_sf"
-              type="datetime-local"
-              value={fecha}
-              onChange={(e) => {
-                setFecha(e.target.value)
-                fechaManualRef.current = true
-              }}
-              className="form-input text-sm"
-              required
+              type="text"
+              value={fecha ? formatearDMAHora(fecha) : ''}
+              readOnly
+              tabIndex={-1}
+              className="form-input text-sm bg-slate-50 text-slate-600 cursor-default"
+              aria-label="Fecha y hora de Venezuela (no editable)"
             />
           </div>
 

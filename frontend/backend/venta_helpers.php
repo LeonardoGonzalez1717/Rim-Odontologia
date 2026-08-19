@@ -337,6 +337,22 @@ function enriquecerVentasConPagos(PDO $pdo, array $ventas): array
 
     return array_map(function ($venta) use ($pagosPorVenta) {
         $pagos = $pagosPorVenta[(int) $venta['id']] ?? [];
+
+        // Ventas antiguas (sin filas en venta_pagos): mostrar el cobro de caja como Efectivo
+        if (empty($pagos)) {
+            $montoCaja = isset($venta['monto_caja'])
+                ? (float) $venta['monto_caja']
+                : (float) ($venta['total'] ?? 0);
+            if ($montoCaja > 0.001) {
+                $pagos = [[
+                    'id'          => 0,
+                    'metodo_pago' => 'Efectivo ($)',
+                    'monto'       => $montoCaja,
+                    'referencia'  => null,
+                ]];
+            }
+        }
+
         return array_merge($venta, [
             'pagos' => $pagos,
         ]);

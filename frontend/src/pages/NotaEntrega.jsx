@@ -12,6 +12,7 @@ import { getDashboard } from '../api/api'
 import Paginacion from '../components/Paginacion'
 import { usePaginacion } from '../hooks/usePaginacion'
 import { abrirNotaEntrega, fmt } from '../utils/reportesPrint'
+import { formatearHora12 } from '../utils/fechas'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Página principal de Notas de Entrega
@@ -137,7 +138,7 @@ const NotaEntrega = ({ onToast }) => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-slate-500">
                         <Clock size={13} />
-                        <span className="text-sm font-medium">{venta.hora}</span>
+                        <span className="text-sm font-medium">{formatearHora12(venta.hora) || venta.hora}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
